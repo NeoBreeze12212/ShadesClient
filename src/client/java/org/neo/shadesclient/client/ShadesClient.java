@@ -12,6 +12,7 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
 import org.neo.shadesclient.events.EventHandler;
+import org.neo.shadesclient.commands.WaypointCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,9 +32,7 @@ public class ShadesClient implements ClientModInitializer {
 
         EventHandler.init();
 
-        // In ShadesClient.java, add these registrations after EventHandler.init():
-
-// Register tick event
+        // Register tick event
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             EventHandler.onTick();
         });
@@ -44,7 +43,8 @@ public class ShadesClient implements ClientModInitializer {
             float tempTickDelta = 0.0f;
             EventHandler.onRenderWorld(context.matrixStack(), tempTickDelta);
         });
-// HUD rendering event
+
+        // HUD rendering event
         HudRenderCallback.EVENT.register((drawContext, tickDelta) -> {
             EventHandler.onRenderHUD(drawContext);
         });
@@ -81,6 +81,9 @@ public class ShadesClient implements ClientModInitializer {
                     })
             );
             LOGGER.info("/shades command registered");
+
+            // Register waypoint commands
+            WaypointCommands.register(dispatcher);
         });
 
         // Initialize modules

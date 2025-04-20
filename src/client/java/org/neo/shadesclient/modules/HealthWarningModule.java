@@ -40,12 +40,10 @@ public class HealthWarningModule extends Module {
         float health = client.player.getHealth();
         long currentTime = System.currentTimeMillis();
 
-        // Check if health is below threshold and we haven't warned recently
+
         if (health <= lowHealthThreshold && (currentTime - lastWarningTime > WARNING_COOLDOWN)) {
-            // Send warning message
             client.player.sendMessage(Text.literal("§c[Health Warning] §fYour health is low! (" + health + "/" + client.player.getMaxHealth() + ")"), true);
 
-            // Play warning sound
             client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f));
 
             lastWarningTime = currentTime;

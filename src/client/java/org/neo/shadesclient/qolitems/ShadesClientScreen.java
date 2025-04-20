@@ -17,13 +17,27 @@ public class ShadesClientScreen extends Screen {
     private static final int CATEGORY_COLOR = 0xFF303030;
     private static final int MODULE_COLOR = 0xFF262626;
     private static final int MODULE_HOVER_COLOR = 0xFF383838;
-    private static final int ENABLED_COLOR = 0xFF4080FF; // Now used in toggleButton
+    private static final int ENABLED_COLOR = 0xFF4080FF;
     private static final int TEXT_COLOR = 0xFFE0E0E0;
+    private static final int SCROLL_BUTTON_COLOR = 0xFF404040;
+    private static final int SCROLL_BUTTON_HOVER_COLOR = 0xFF606060;
 
     private ModuleCategory selectedCategory = ModuleCategory.SURVIVAL_QOL;
     private final List<CategoryButton> categoryButtons = new ArrayList<>();
     private final List<ModuleButton> moduleButtons = new ArrayList<>();
     private Text categoryTitle;
+
+    // Scroll variables
+    private int scrollX = 0;
+    private int maxScrollX = 0;
+    private ButtonWidget leftScrollButton;
+    private ButtonWidget rightScrollButton;
+
+    // Grid layout settings
+    private static final int MODULES_PER_COLUMN = 3;
+    private static final int MODULE_WIDTH = 220;
+    private static final int MODULE_HEIGHT = 80;
+    private static final int MODULE_MARGIN = 10;
 
     public ShadesClientScreen() {
         super(Text.literal("ShadesClient"));
@@ -49,7 +63,7 @@ public class ShadesClientScreen extends Screen {
         addCategoryButton(ModuleCategory.SURVIVAL_QOL, leftPanelWidth, categoryY);
         categoryY += buttonHeight;
 
-        addCategoryButton(ModuleCategory.COMBAT, leftPanelWidth, categoryY);
+        addCategoryButton(ModuleCategory.HYPIXEL, leftPanelWidth, categoryY);
         categoryY += buttonHeight;
 
         addCategoryButton(ModuleCategory.VISUALS, leftPanelWidth, categoryY);
@@ -73,8 +87,23 @@ public class ShadesClientScreen extends Screen {
             org.neo.shadesclient.client.ShadesClient.LOGGER.info("Statistics button clicked");
         });
 
+        // Add scroll buttons
+        leftScrollButton = ButtonWidget.builder(Text.literal("<"), button -> {
+            scrollLeft();
+        }).dimensions(190, height / 2, 20, 40).build();
+
+        rightScrollButton = ButtonWidget.builder(Text.literal(">"), button -> {
+            scrollRight();
+        }).dimensions(width - 30, height / 2, 20, 40).build();
+
+        addDrawableChild(leftScrollButton);
+        addDrawableChild(rightScrollButton);
+
         // Update the category title
         categoryTitle = Text.literal(selectedCategory.getDisplayName());
+
+        // Reset scroll position when initializing
+        scrollX = 0;
 
         // Refresh module buttons
         refreshModuleButtons();
@@ -87,6 +116,7 @@ public class ShadesClientScreen extends Screen {
                 btn -> {
                     selectedCategory = category;
                     categoryTitle = Text.literal(category.getDisplayName());
+                    scrollX = 0; // Reset scroll position when changing categories
                     refreshModuleButtons();
                     org.neo.shadesclient.client.ShadesClient.LOGGER.info("Selected category: " + category.getDisplayName());
                 }, category);
@@ -101,12 +131,63 @@ public class ShadesClientScreen extends Screen {
         addDrawableChild(button);
     }
 
+    private void scrollLeft() {
+        scrollX = Math.max(0, scrollX - MODULE_WIDTH - MODULE_MARGIN);
+        updateModuleButtonPositions();
+        org.neo.shadesclient.client.ShadesClient.LOGGER.info("Scrolled left, new scrollX: " + scrollX);
+    }
+
+    private void scrollRight() {
+        if (scrollX < maxScrollX) {
+            scrollX = Math.min(maxScrollX, scrollX + MODULE_WIDTH + MODULE_MARGIN);
+            updateModuleButtonPositions();
+            org.neo.shadesclient.client.ShadesClient.LOGGER.info("Scrolled right, new scrollX: " + scrollX);
+        }
+    }
+
+    private void updateModuleButtonPositions() {
+        List<Module> categoryModules = ModuleManager.getModulesByCategory(selectedCategory);
+        int columnCount = (int) Math.ceil((double) categoryModules.size() / MODULES_PER_COLUMN);
+
+        int contentWidth = 200; // Starting X position for modules
+        int visibleWidth = width - contentWidth;
+        int totalWidth = columnCount * (MODULE_WIDTH + MODULE_MARGIN);
+
+        // Only show scroll buttons if needed
+        leftScrollButton.visible = scrollX > 0;
+        rightScrollButton.visible = totalWidth > visibleWidth && scrollX < maxScrollX;
+
+        // Update position of all module buttons
+        for (int i = 0; i < moduleButtons.size(); i++) {
+            Module module = categoryModules.get(i);
+            ModuleButton button = moduleButtons.get(i);
+
+            int column = i / MODULES_PER_COLUMN;
+            int row = i % MODULES_PER_COLUMN;
+
+            int x = contentWidth + column * (MODULE_WIDTH + MODULE_MARGIN) - scrollX;
+            int y = 60 + row * (MODULE_HEIGHT + MODULE_MARGIN);
+
+            button.setPosition(x, y);
+
+            // Update toggle and config buttons positions
+            if (button.toggleButton != null) {
+                button.toggleButton.setX(x + MODULE_WIDTH - 60);
+                button.toggleButton.setY(y + 10);
+            }
+
+            if (button.configButton != null) {
+                button.configButton.setX(x + MODULE_WIDTH - 140);
+                button.configButton.setY(y + MODULE_HEIGHT - 30);
+            }
+        }
+    }
+
     private void refreshModuleButtons() {
         // Log refresh operation
         org.neo.shadesclient.client.ShadesClient.LOGGER.info("Refreshing module buttons for category: " + selectedCategory.getDisplayName());
 
         // Remove existing module buttons from the screen's children list
-        // Fixed: use removeChild instead of remove
         for (ModuleButton button : new ArrayList<>(moduleButtons)) {
             remove(button);
             // Also remove the toggle and config buttons
@@ -123,24 +204,33 @@ public class ShadesClientScreen extends Screen {
         List<Module> categoryModules = ModuleManager.getModulesByCategory(selectedCategory);
         org.neo.shadesclient.client.ShadesClient.LOGGER.info("Found " + categoryModules.size() + " modules for category " + selectedCategory.getDisplayName());
 
-        int x = 200;
-        int y = 60;
-        int moduleWidth = width - x - 20;
-        int moduleHeight = 80;
-        int margin = 10;
+        int contentWidth = 200; // Starting X position for modules
+        int columnCount = (int) Math.ceil((double) categoryModules.size() / MODULES_PER_COLUMN);
 
-        for (Module module : categoryModules) {
-            ModuleButton moduleButton = new ModuleButton(x, y, moduleWidth, moduleHeight, module);
+        // Calculate the max scroll value
+        int visibleWidth = width - contentWidth;
+        int totalWidth = columnCount * (MODULE_WIDTH + MODULE_MARGIN);
+        maxScrollX = Math.max(0, totalWidth - visibleWidth + MODULE_MARGIN);
+
+        // Create module buttons
+        for (int i = 0; i < categoryModules.size(); i++) {
+            Module module = categoryModules.get(i);
+
+            int column = i / MODULES_PER_COLUMN;
+            int row = i % MODULES_PER_COLUMN;
+
+            int x = contentWidth + column * (MODULE_WIDTH + MODULE_MARGIN) - scrollX;
+            int y = 60 + row * (MODULE_HEIGHT + MODULE_MARGIN);
+
+            ModuleButton moduleButton = new ModuleButton(x, y, MODULE_WIDTH, MODULE_HEIGHT, module);
             moduleButtons.add(moduleButton);
             addDrawableChild(moduleButton);
             org.neo.shadesclient.client.ShadesClient.LOGGER.info("Added module button: " + module.getName());
-
-            y += moduleHeight + margin;
-            if (y > height - moduleHeight - 10) {
-                y = 60;
-                x += moduleWidth + margin;
-            }
         }
+
+        // Update scroll button visibility
+        leftScrollButton.visible = scrollX > 0;
+        rightScrollButton.visible = totalWidth > visibleWidth && scrollX < maxScrollX;
     }
 
     @Override
@@ -209,8 +299,8 @@ public class ShadesClientScreen extends Screen {
 
     class ModuleButton extends ButtonWidget {
         private final Module module;
-        private final ButtonWidget toggleButton;
-        private final ButtonWidget configButton;
+        private ButtonWidget toggleButton;
+        private ButtonWidget configButton;
 
         public ModuleButton(int x, int y, int width, int height, Module module) {
             super(x, y, width, height, Text.literal(module.getName()), button -> {
@@ -246,6 +336,11 @@ public class ShadesClientScreen extends Screen {
             } else {
                 this.configButton = null;
             }
+        }
+
+        public void setPosition(int x, int y) {
+            setX(x);
+            setY(y);
         }
 
         @Override

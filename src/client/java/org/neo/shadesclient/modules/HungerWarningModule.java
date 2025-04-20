@@ -38,12 +38,10 @@ public class HungerWarningModule extends Module {
         int foodLevel = client.player.getHungerManager().getFoodLevel();
         long currentTime = System.currentTimeMillis();
 
-        // Check if hunger is below threshold and we haven't warned recently
         if (foodLevel <= lowHungerThreshold && (currentTime - lastWarningTime > WARNING_COOLDOWN)) {
             // Send warning message
             client.player.sendMessage(Text.literal("§e[Hunger Warning] §fYour hunger is low! (" + foodLevel + "/20)"), true);
 
-            // Play warning sound
             client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.8f));
 
             lastWarningTime = currentTime;

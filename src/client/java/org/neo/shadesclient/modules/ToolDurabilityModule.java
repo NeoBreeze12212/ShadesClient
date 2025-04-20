@@ -20,7 +20,6 @@ public class ToolDurabilityModule extends Module {
     private boolean showDurabilityOverlay = true;
     private boolean playSound = true;
 
-    // Track which items we've already warned about to avoid spam
     private final Set<Integer> warnedItems = new HashSet<>();
 
     public ToolDurabilityModule(String name, String description, ModuleCategory category) {
