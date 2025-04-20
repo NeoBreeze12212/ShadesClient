@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ShadesClient.client.iml" filepath="$PROJECT_DIR$/.idea/modules/ShadesClient.client.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ShadesClient.main.iml" filepath="$PROJECT_DIR$/.idea/modules/ShadesClient.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ShadesClient.test.iml" filepath="$PROJECT_DIR$/.idea/modules/ShadesClient.test.iml" />
+    </modules>
+  </component>
+</project>

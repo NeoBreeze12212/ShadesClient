@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "shadesclient",
+  "version": "${version}",
+  "name": "ShadesClient",
+  "description": "A QOL Mod for Minecraft",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/shadesclient/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "org.neo.shadesclient.client.ShadesclientDataGenerator"
+    ],
+    "client": [
+      "org.neo.shadesclient.client.ShadesClient"
+    ],
+    "main": [
+      "org.neo.shadesclient.Shadesclient"
+    ]
+  },
+  "mixins": [
+    "shadesclient.mixins.json",
+    {
+      "config": "shadesclient.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}

@@ -1,0 +1,11 @@
+/shades
+/give @s golden_boots
+/effect give @p minecraft:hunger infinite 100
+/effect clear @p
+/give @s minecraft:golden_apple
+/gamemode survival
+/effect give @s minecraft:hunger infinite 10 true
+/effect give @s minecraft:hunger infinite 1000 true
+/effect give @s minecraft:hunger infinite 100 true
+/effect clear @p
+/time set day
