@@ -30,6 +30,12 @@
 
 ## 🛠️ Coming Soon
 
+- 🔎 **Zoom**  
+  Zoom without a spyglass!
+
+- 🚧 **Cosmetics**  
+  Add your own cosmetics to the game!
+  
 - 📍 **Death Waypoints**  
   Automatically mark the spot where you died so you can find your items again.
 
