@@ -25,11 +25,13 @@ public class PlaytimeTrackerModule extends Module {
     private boolean showPlaytime = true;
     private boolean enableBreakReminders = true;
     private int breakReminderInterval = 20; // in minutes
+    private ModuleConfigGUI.NotificationType notificationType = ModuleConfigGUI.NotificationType.GUI;
 
-    // Colors
+    // Colors - matching Tool Durability module style
     private static final int HEADER_COLOR = 0xFF00FF00;     // Green text for headers
     private static final int VALUE_COLOR = 0xFFFFFFFF;      // White for values
-    private static final int WARNING_COLOR = 0xFFFF5555;    // Red for warnings
+    private static final int WARNING_COLOR = 0xFFFF7700;    // Orange for warnings
+    private static final int BACKGROUND_COLOR = 0xA0000000; // Semi-transparent black background
 
     public PlaytimeTrackerModule(String name, String description, ModuleCategory category) {
         super(name, description, category);
@@ -96,8 +98,22 @@ public class PlaytimeTrackerModule extends Module {
     public void showBreakReminder() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null) {
-            client.player.sendMessage(Text.of("§c[Playtime Tracker] §fYou have been playing for " +
-                    formatDuration(getSessionDuration()) + ". Time to take a break!"), true);
+            String message = "You have been playing for " + formatDuration(getSessionDuration()) + ". Time to take a break!";
+
+            // Display based on notification type
+            switch (notificationType) {
+                case ACTION_BAR:
+                    client.player.sendMessage(Text.of(message), true);
+                    break;
+                case TITLE:
+                    client.inGameHud.setTitle(Text.of("Break Time!"));
+                    client.inGameHud.setSubtitle(Text.of(message));
+                    break;
+                case GUI:
+                default:
+                    client.player.sendMessage(Text.of("§c[Playtime Tracker] §f" + message), true);
+                    break;
+            }
 
             // Play a sound to get the player's attention
             client.player.playSound(net.minecraft.sound.SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
@@ -108,33 +124,47 @@ public class PlaytimeTrackerModule extends Module {
     }
 
     /**
-     * Render playtime information in the ModuleGUIManager's interface
+     * Render playtime information with a box-style UI matching Tool Durability
      * @param context DrawContext for rendering
      * @param x X position
      * @param y Y position
-     * @param width Width of the display
      * @return new Y position after rendering
      */
     public int renderPlaytimeInfo(DrawContext context, int x, int y, int width) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        if (!isEnabled()) return y;
 
-        // Module title centered and green
+        MinecraftClient client = MinecraftClient.getInstance();
+        int startY = y;
+        int padding = 5;
+        int contentWidth = 150; // Fixed width for the box
+        int contentHeight = calculateHeight(); // Dynamic height based on content
+
+        // Draw background box
+        context.fill(x, startY, x + contentWidth, startY + contentHeight, BACKGROUND_COLOR);
+
+        // Draw module title centered and green - matching Tool Durability style
         String titleText = "— Playtime Tracker —";
         int titleWidth = client.textRenderer.getWidth(titleText);
-        context.drawText(client.textRenderer, titleText, x + (width - titleWidth) / 2, y, HEADER_COLOR, false);
-        y += 10;
+        context.drawText(client.textRenderer, titleText, x + (contentWidth - titleWidth) / 2, startY + padding, HEADER_COLOR, false);
+        y = startY + padding + 10;
 
-        // Show current time if enabled
+        // Show current time if enabled - white text
         if (showCurrentTime) {
             String timeText = "Current Time: " + getCurrentTime();
-            context.drawText(client.textRenderer, timeText, x + 5, y, VALUE_COLOR, false);
+            context.drawText(client.textRenderer, timeText, x + padding, y, VALUE_COLOR, false);
             y += 10;
         }
 
-        // Show playtime if enabled
+        // Show playtime if enabled - white text or warning color if session is long
         if (showPlaytime) {
             String playtimeText = "Session: " + formatDuration(getSessionDuration());
-            context.drawText(client.textRenderer, playtimeText, x + 5, y, VALUE_COLOR, false);
+
+            int textColor = VALUE_COLOR;
+            if (getSessionDuration() > breakReminderInterval * 60 * 1000) {
+                textColor = WARNING_COLOR; // Use orange warning color
+            }
+
+            context.drawText(client.textRenderer, playtimeText, x + padding, y, textColor, false);
             y += 10;
         }
 
@@ -143,7 +173,18 @@ public class PlaytimeTrackerModule extends Module {
             showBreakReminder();
         }
 
-        return y;
+        return startY + contentHeight + 5; // Return position after box with a small gap
+    }
+
+    /**
+     * Calculate the height needed for the box based on enabled content
+     * @return height in pixels
+     */
+    private int calculateHeight() {
+        int height = 20; // Base height with title
+        if (showCurrentTime) height += 10;
+        if (showPlaytime) height += 10;
+        return height;
     }
 
     @Override
@@ -153,7 +194,7 @@ public class PlaytimeTrackerModule extends Module {
 
     @Override
     public void openConfigScreen() {
-        MinecraftClient.getInstance().setScreen(new PlaytimeConfigScreen(null, this));
+        MinecraftClient.getInstance().setScreen(new ModuleConfigGUI(null, "Playtime Tracker", this));
     }
 
     // Getters and setters for configuration
@@ -189,134 +230,17 @@ public class PlaytimeTrackerModule extends Module {
         this.breakReminderInterval = breakReminderInterval;
     }
 
+    public ModuleConfigGUI.NotificationType getNotificationType() {
+        return notificationType;
+    }
+
+    public void setNotificationType(ModuleConfigGUI.NotificationType notificationType) {
+        this.notificationType = notificationType;
+    }
+
     public void resetSession() {
         sessionStartTime = System.currentTimeMillis();
         lastBreakNotification = sessionStartTime;
         ShadesClient.LOGGER.info("Playtime Tracker session reset");
-    }
-
-    /**
-     * Custom configuration screen for the Playtime Tracker module
-     */
-    public class PlaytimeConfigScreen extends Screen {
-        private final Screen parent;
-        private final PlaytimeTrackerModule module;
-
-        // Layout properties
-        private static final int BACKGROUND_COLOR = 0x90000000;
-        private static final int HEADER_COLOR = 0xFF1A1A1A;
-        private static final int TEXT_COLOR = 0xFFE0E0E0;
-
-        public PlaytimeConfigScreen(Screen parent, PlaytimeTrackerModule module) {
-            super(Text.of("Playtime Tracker Configuration"));
-            this.parent = parent;
-            this.module = module;
-        }
-
-        @Override
-        protected void init() {
-            super.init();
-
-            int centerX = width / 2;
-            int y = 80;
-            int buttonWidth = 200;
-            int buttonHeight = 20;
-            int spacing = 30;
-
-            // Show Current Time toggle
-            this.addDrawableChild(ButtonWidget.builder(
-                            Text.of("Show Current Time: " + (module.isShowCurrentTime() ? "ON" : "OFF")),
-                            button -> {
-                                module.setShowCurrentTime(!module.isShowCurrentTime());
-                                button.setMessage(Text.of("Show Current Time: " + (module.isShowCurrentTime() ? "ON" : "OFF")));
-                            })
-                    .dimensions(centerX - buttonWidth / 2, y, buttonWidth, buttonHeight)
-                    .build());
-            y += spacing;
-
-            // Show Playtime toggle
-            this.addDrawableChild(ButtonWidget.builder(
-                            Text.of("Show Playtime: " + (module.isShowPlaytime() ? "ON" : "OFF")),
-                            button -> {
-                                module.setShowPlaytime(!module.isShowPlaytime());
-                                button.setMessage(Text.of("Show Playtime: " + (module.isShowPlaytime() ? "ON" : "OFF")));
-                            })
-                    .dimensions(centerX - buttonWidth / 2, y, buttonWidth, buttonHeight)
-                    .build());
-            y += spacing;
-
-            // Break Reminders toggle
-            this.addDrawableChild(ButtonWidget.builder(
-                            Text.of("Break Reminders: " + (module.isEnableBreakReminders() ? "ON" : "OFF")),
-                            button -> {
-                                module.setEnableBreakReminders(!module.isEnableBreakReminders());
-                                button.setMessage(Text.of("Break Reminders: " + (module.isEnableBreakReminders() ? "ON" : "OFF")));
-                            })
-                    .dimensions(centerX - buttonWidth / 2, y, buttonWidth, buttonHeight)
-                    .build());
-            y += spacing;
-
-            // Break Reminder Interval slider
-            final int currentInterval = module.getBreakReminderInterval();
-            this.addDrawableChild(new SliderWidget(
-                    centerX - buttonWidth / 2, y, buttonWidth, buttonHeight,
-                    Text.of("Reminder Interval: " + currentInterval + " min"),
-                    currentInterval / 60.0f
-            ) {
-                @Override
-                protected void updateMessage() {
-                    int value = (int) (this.value * 60);
-                    // Ensure minimum value of 1 minute
-                    value = Math.max(1, value);
-                    this.setMessage(Text.of("Reminder Interval: " + value + " min"));
-                }
-
-                @Override
-                protected void applyValue() {
-                    int value = (int) (this.value * 60);
-                    // Ensure minimum value of 1 minute
-                    value = Math.max(1, value);
-                    module.setBreakReminderInterval(value);
-                }
-            });
-            y += spacing;
-
-            // Reset Session button
-            this.addDrawableChild(ButtonWidget.builder(
-                            Text.of("Reset Session Timer"),
-                            button -> module.resetSession())
-                    .dimensions(centerX - buttonWidth / 2, y, buttonWidth, buttonHeight)
-                    .build());
-            y += spacing;
-
-            // Back button
-            this.addDrawableChild(ButtonWidget.builder(
-                            Text.of("Back"),
-                            button -> MinecraftClient.getInstance().setScreen(parent))
-                    .dimensions(centerX - buttonWidth / 2, y, buttonWidth, buttonHeight)
-                    .build());
-        }
-
-        @Override
-        public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-            renderBackground(context);
-
-            // Draw title
-            String title = "Playtime Tracker Configuration";
-            int titleWidth = textRenderer.getWidth(title);
-            context.drawText(textRenderer, title, (width - titleWidth) / 2, 40, TEXT_COLOR, false);
-
-            super.render(context, mouseX, mouseY, delta);
-        }
-
-        public void renderBackground(DrawContext context) {
-            context.fill(0, 0, width, height, BACKGROUND_COLOR);
-            context.fill(0, 0, width, 60, HEADER_COLOR);
-        }
-
-        @Override
-        public boolean shouldPause() {
-            return false;
-        }
     }
 }

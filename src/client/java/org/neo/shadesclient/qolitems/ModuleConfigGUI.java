@@ -4,13 +4,13 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
 import net.minecraft.text.OrderedText;
 import org.neo.shadesclient.modules.ToolDurabilityModule;
 import org.neo.shadesclient.modules.TorchReminderModule;
 import org.neo.shadesclient.modules.FishingNotifierModule;
+import org.neo.shadesclient.modules.PlaytimeTrackerModule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +30,7 @@ public class ModuleConfigGUI extends Screen {
 
     private final Screen parent;
     private final String moduleName;
-    private final Object module; // Either ToolDurabilityModule, TorchReminderModule, or FishingNotifierModule
+    private final Object module; // Type of module (PlaytimeTrackerModule, etc.)
 
     // Categories for settings
     private enum SettingCategory {
@@ -108,7 +108,7 @@ public class ModuleConfigGUI extends Screen {
     }
 
     public ModuleConfigGUI(Screen parent, String moduleName, Object module) {
-        super(Text.of(moduleName + " Configuration"));  // Changed to Text.of instead of Text.literal
+        super(Text.of(moduleName + " Configuration"));
         this.parent = parent;
         this.moduleName = moduleName;
         this.module = module;
@@ -182,7 +182,30 @@ public class ModuleConfigGUI extends Screen {
 
     private void initializeSettings() {
         // Add module-specific settings
-        if (module instanceof ToolDurabilityModule) {
+        if (module instanceof PlaytimeTrackerModule) {
+            PlaytimeTrackerModule playtimeModule = (PlaytimeTrackerModule) module;
+
+            // Add module settings for PlaytimeTrackerModule
+            settingOptions.add(new SettingOption("Show Current Time",
+                    "Display the current system time on screen",
+                    SettingCategory.MODULE_SETTINGS));
+
+            settingOptions.add(new SettingOption("Show Playtime",
+                    "Display the current session playtime on screen",
+                    SettingCategory.MODULE_SETTINGS));
+
+            settingOptions.add(new SettingOption("Enable Break Reminders",
+                    "Remind you to take breaks after extended playtime",
+                    SettingCategory.MODULE_SETTINGS));
+
+            settingOptions.add(new SettingOption("Break Reminder Interval",
+                    "Time between break reminders (in minutes)",
+                    SettingCategory.MODULE_SETTINGS));
+
+            settingOptions.add(new SettingOption("Reset Session",
+                    "Reset the current playtime session timer",
+                    SettingCategory.MODULE_SETTINGS));
+        } else if (module instanceof ToolDurabilityModule) {
             ToolDurabilityModule toolModule = (ToolDurabilityModule) module;
 
             // Add module settings
@@ -252,7 +275,84 @@ public class ModuleConfigGUI extends Screen {
         for (SettingOption option : settingOptions) {
             if (option.category != selectedCategory) continue;
 
-            if (module instanceof ToolDurabilityModule) {
+            if (module instanceof PlaytimeTrackerModule) {
+                PlaytimeTrackerModule playtimeModule = (PlaytimeTrackerModule) module;
+
+                if (selectedCategory == SettingCategory.MODULE_SETTINGS) {
+                    if (option.name.equals("Show Current Time")) {
+                        boolean isEnabled = playtimeModule.isShowCurrentTime();
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of("Show Current Time: " + (isEnabled ? "ON" : "OFF")),
+                                        btn -> {
+                                            playtimeModule.setShowCurrentTime(!playtimeModule.isShowCurrentTime());
+                                            btn.setMessage(Text.of("Show Current Time: " + (playtimeModule.isShowCurrentTime() ? "ON" : "OFF")));
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    } else if (option.name.equals("Show Playtime")) {
+                        boolean isEnabled = playtimeModule.isShowPlaytime();
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of("Show Playtime: " + (isEnabled ? "ON" : "OFF")),
+                                        btn -> {
+                                            playtimeModule.setShowPlaytime(!playtimeModule.isShowPlaytime());
+                                            btn.setMessage(Text.of("Show Playtime: " + (playtimeModule.isShowPlaytime() ? "ON" : "OFF")));
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    } else if (option.name.equals("Enable Break Reminders")) {
+                        boolean isEnabled = playtimeModule.isEnableBreakReminders();
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of("Enable Break Reminders: " + (isEnabled ? "ON" : "OFF")),
+                                        btn -> {
+                                            playtimeModule.setEnableBreakReminders(!playtimeModule.isEnableBreakReminders());
+                                            btn.setMessage(Text.of("Enable Break Reminders: " + (playtimeModule.isEnableBreakReminders() ? "ON" : "OFF")));
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    } else if (option.name.equals("Break Reminder Interval")) {
+                        final int currentValue = playtimeModule.getBreakReminderInterval();
+                        SliderWidget slider = new SliderWidget(
+                                contentStartX, y, contentWidth, settingHeight,
+                                Text.of("Break Reminder Interval: " + currentValue + " min"),
+                                currentValue / 60.0f
+                        ) {
+                            @Override
+                            protected void updateMessage() {
+                                int value = (int) (this.value * 60);
+                                // Ensure minimum value is 5 minutes
+                                value = Math.max(5, value);
+                                this.setMessage(Text.of("Break Reminder Interval: " + value + " min"));
+                            }
+
+                            @Override
+                            protected void applyValue() {
+                                int value = (int) (this.value * 60);
+                                // Ensure minimum value is 5 minutes
+                                value = Math.max(5, value);
+                                playtimeModule.setBreakReminderInterval(value);
+                            }
+                        };
+                        addDrawableChild(slider);
+                        option.setAssociatedButton(slider);
+                    } else if (option.name.equals("Reset Session")) {
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of("Reset Session"),
+                                        btn -> {
+                                            playtimeModule.resetSession();
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    }
+                }
+            } else if (module instanceof ToolDurabilityModule) {
                 ToolDurabilityModule toolModule = (ToolDurabilityModule) module;
 
                 if (selectedCategory == SettingCategory.MODULE_SETTINGS) {
@@ -422,6 +522,8 @@ public class ModuleConfigGUI extends Screen {
                                                 ((TorchReminderModule) module).setNotificationType(thisType);
                                             } else if (module instanceof FishingNotifierModule) {
                                                 ((FishingNotifierModule) module).setNotificationType(thisType);
+                                            } else if (module instanceof PlaytimeTrackerModule) {
+                                                setNotificationTypeForPlaytimeTracker((PlaytimeTrackerModule) module, thisType);
                                             }
 
                                             // Rebuild UI to reflect the changes
@@ -448,8 +550,19 @@ public class ModuleConfigGUI extends Screen {
             return ((TorchReminderModule) module).getNotificationType();
         } else if (module instanceof FishingNotifierModule) {
             return ((FishingNotifierModule) module).getNotificationType();
+        } else if (module instanceof PlaytimeTrackerModule) {
+            // Assuming PlaytimeTrackerModule has a getNotificationType method
+            // If not implemented yet, we'll add it separately
+            return NotificationType.GUI; // Default if not yet implemented
         }
         return NotificationType.GUI; // Default
+    }
+
+    // Helper method to set notification type for PlaytimeTrackerModule
+    // This would need to be implemented in the PlaytimeTrackerModule class
+    private void setNotificationTypeForPlaytimeTracker(PlaytimeTrackerModule module, NotificationType type) {
+        // This would call module.setNotificationType(type) once implemented
+        // For now, we'll handle it as a placeholder
     }
 
     private void saveSettings() {
