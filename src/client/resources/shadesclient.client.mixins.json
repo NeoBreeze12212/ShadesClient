@@ -6,7 +6,9 @@
   "client": [
     "ClientTickMixin",
     "WorldRenderMixin",
-    "InGameHudMixin"
+    "InGameHudMixin",
+    "InventoryLockMixin",
+    "ItemDropMixin"
   ],
   "injectors": {
     "defaultRequire": 1

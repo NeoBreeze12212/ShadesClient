@@ -80,10 +80,7 @@ public class EventHandler {
             for (Module module : ModuleManager.getModules()) {
                 if (!module.isEnabled()) continue;
 
-                if (module instanceof WaypointsModule) {
-                    ((WaypointsModule) module).render(matrixStack, immediate, cameraX, cameraY, cameraZ);
-                }
-                else if (module instanceof CropHelperModule) {
+                if (module instanceof CropHelperModule) {
                     ((CropHelperModule) module).render(matrixStack, immediate, cameraX, cameraY, cameraZ);
                 }
             }
@@ -107,6 +104,9 @@ public class EventHandler {
 
                 if (module instanceof ToolDurabilityModule) {
                     ((ToolDurabilityModule) module).renderDurabilityOverlay(context);
+                }
+                else if (module instanceof InventoryLockModule) {
+                    ((InventoryLockModule) module).renderHUD(context);
                 }
             }
         } catch (Exception e) {

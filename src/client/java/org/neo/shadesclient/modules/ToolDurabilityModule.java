@@ -7,7 +7,10 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
+import org.neo.shadesclient.client.ShadesClient;
+import org.neo.shadesclient.qolitems.ModuleConfigGUI;
 import org.neo.shadesclient.qolitems.ModuleCategory;
 import org.neo.shadesclient.qolitems.Module;
 
@@ -19,6 +22,7 @@ public class ToolDurabilityModule extends Module {
     private int warningThreshold = DEFAULT_WARNING_THRESHOLD;
     private boolean showDurabilityOverlay = true;
     private boolean playSound = true;
+    private ModuleConfigGUI.NotificationType notificationType = ModuleConfigGUI.NotificationType.GUI;
 
     private final Set<Integer> warnedItems = new HashSet<>();
 
@@ -28,13 +32,13 @@ public class ToolDurabilityModule extends Module {
 
     @Override
     protected void onEnable() {
-        org.neo.shadesclient.client.ShadesClient.LOGGER.info(getName() + " module enabled");
+        ShadesClient.LOGGER.info(getName() + " module enabled");
         warnedItems.clear();
     }
 
     @Override
     protected void onDisable() {
-        org.neo.shadesclient.client.ShadesClient.LOGGER.info(getName() + " module disabled");
+        ShadesClient.LOGGER.info(getName() + " module disabled");
         warnedItems.clear();
     }
 
@@ -76,30 +80,84 @@ public class ToolDurabilityModule extends Module {
     private void sendWarning(MinecraftClient client, ItemStack stack, int durabilityPercent) {
         String itemName = stack.getName().getString();
 
-        client.player.sendMessage(
-                Text.literal("§c[Tool Durability] §f" + itemName + " is at §c" + durabilityPercent + "%§f durability!"),
-                true
-        );
+        // Create formatted message
+        Text message = Text.literal("[Tool Durability] ")
+                .formatted(Formatting.RED)
+                .append(Text.literal(itemName + " is at ")
+                        .formatted(Formatting.WHITE))
+                .append(Text.literal(durabilityPercent + "%")
+                        .formatted(Formatting.RED))
+                .append(Text.literal(" durability!")
+                        .formatted(Formatting.WHITE));
+
+        // Send notification based on selected type
+        switch (notificationType) {
+            case ACTION_BAR:
+                client.player.sendMessage(message, true);
+                break;
+            case TITLE:
+                client.inGameHud.setTitle(Text.literal("Low Durability!").formatted(Formatting.RED));
+                client.inGameHud.setSubtitle(message);
+                client.inGameHud.setTitleTicks(10, 40, 10);
+                break;
+            case GUI:
+                // GUI display is handled by renderDurabilityOverlay method
+                client.player.sendMessage(message, false);
+                break;
+        }
 
         if (playSound) {
             client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f));
         }
 
-        org.neo.shadesclient.client.ShadesClient.LOGGER.info("Sent durability warning for " + itemName + " at " + durabilityPercent + "%");
+        ShadesClient.LOGGER.info("Sent durability warning for " + itemName + " at " + durabilityPercent + "%");
     }
 
     // This method would be called during HUD rendering
     public void renderDurabilityOverlay(DrawContext context) {
-        if (!isEnabled() || !showDurabilityOverlay) return;
+        if (!isEnabled() || !showDurabilityOverlay || notificationType != ModuleConfigGUI.NotificationType.GUI) return;
 
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
-        ItemStack mainHandItem = client.player.getMainHandStack();
+        // Draw the module GUI background
+        int width = 120;
+        int height = 50;
+        int x = 5;
+        int y = 5;
 
-        if (!mainHandItem.isEmpty() && mainHandItem.isDamageable()) {
-            int maxDamage = mainHandItem.getMaxDamage();
-            int damage = mainHandItem.getDamage();
+        // Background
+        context.fill(x, y, x + width, y + height, 0xAA000000);
+
+        // Border
+        context.fill(x, y, x + width, y + 1, 0xFF404040);
+        context.fill(x, y + height - 1, x + width, y + height, 0xFF404040);
+        context.fill(x, y, x + 1, y + height, 0xFF404040);
+        context.fill(x + width - 1, y, x + width, y + height, 0xFF404040);
+
+        // Header
+        String headerText = "— Tool Durability —";
+        int headerWidth = client.textRenderer.getWidth(headerText);
+        context.drawText(client.textRenderer, headerText, x + (width - headerWidth) / 2, y + 5, 0xFF00FF00, true);
+
+        // Separator
+        context.fill(x + 5, y + 15, x + width - 5, y + 16, 0xFF404040);
+
+        // Main hand item durability
+        ItemStack mainHandItem = client.player.getMainHandStack();
+        renderItemDurability(context, mainHandItem, x + 10, y + 20, "Main Hand");
+
+        // Offhand item durability
+        ItemStack offHandItem = client.player.getOffHandStack();
+        renderItemDurability(context, offHandItem, x + 10, y + 35, "Off Hand");
+    }
+
+    private void renderItemDurability(DrawContext context, ItemStack stack, int x, int y, String slotName) {
+        MinecraftClient client = MinecraftClient.getInstance();
+
+        if (!stack.isEmpty() && stack.isDamageable()) {
+            int maxDamage = stack.getMaxDamage();
+            int damage = stack.getDamage();
 
             if (maxDamage > 0) {
                 int durabilityPercent = (int) (100 * (maxDamage - damage) / (float) maxDamage);
@@ -116,19 +174,49 @@ public class ToolDurabilityModule extends Module {
                     color = 0xFF00FF00; // Green
                 }
 
-                // Render durability text
-                String text = durabilityPercent + "%";
-                int x = context.getScaledWindowWidth() / 2;
-                int y = context.getScaledWindowHeight() - 40;
-
-                context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, text, x, y, color);
+                // Draw item name and durability
+                String itemName = stack.getName().getString();
+                String text = slotName + ": " + itemName + " (" + durabilityPercent + "%)";
+                context.drawTextWithShadow(client.textRenderer, text, x, y, color);
             }
+        } else {
+            // No item or not damageable
+            context.drawTextWithShadow(client.textRenderer, slotName + ": -", x, y, 0xFFAAAAAA);
         }
+    }
+
+    // Getters and setters
+    public int getWarningThreshold() {
+        return warningThreshold;
     }
 
     public void setWarningThreshold(int threshold) {
         this.warningThreshold = Math.max(1, Math.min(100, threshold));
-        org.neo.shadesclient.client.ShadesClient.LOGGER.info("Set durability warning threshold to " + warningThreshold + "%");
+        ShadesClient.LOGGER.info("Set durability warning threshold to " + warningThreshold + "%");
+    }
+
+    public boolean isShowDurabilityOverlay() {
+        return showDurabilityOverlay;
+    }
+
+    public void setShowDurabilityOverlay(boolean showOverlay) {
+        this.showDurabilityOverlay = showOverlay;
+    }
+
+    public boolean isPlaySound() {
+        return playSound;
+    }
+
+    public void setPlaySound(boolean playSound) {
+        this.playSound = playSound;
+    }
+
+    public ModuleConfigGUI.NotificationType getNotificationType() {
+        return notificationType;
+    }
+
+    public void setNotificationType(ModuleConfigGUI.NotificationType type) {
+        this.notificationType = type;
     }
 
     @Override
@@ -138,7 +226,8 @@ public class ToolDurabilityModule extends Module {
 
     @Override
     public void openConfigScreen() {
-        // Would implement configuration screen for threshold and display settings
-        org.neo.shadesclient.client.ShadesClient.LOGGER.info("Opening config for " + getName());
+        MinecraftClient client = MinecraftClient.getInstance();
+        client.setScreen(new ModuleConfigGUI(client.currentScreen, getName(), this));
+        ShadesClient.LOGGER.info("Opening config for " + getName());
     }
 }

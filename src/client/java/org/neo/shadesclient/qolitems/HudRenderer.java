@@ -26,17 +26,16 @@ public class HudRenderer {
     private void renderModuleHudElements(DrawContext context) {
         // Get the fishing module by iterating through modules
         FishingNotifierModule fishingModule = null;
+
         for (Module module : ModuleManager.getModules()) {
             if (module instanceof FishingNotifierModule) {
                 fishingModule = (FishingNotifierModule) module;
-                break;
             }
         }
 
         if (fishingModule != null && fishingModule.isEnabled()) {
             fishingModule.onRenderHud(context);
         }
-
         // Other modules' HUD rendering can be added here
     }
 }

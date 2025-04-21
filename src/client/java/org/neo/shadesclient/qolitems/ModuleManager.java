@@ -23,11 +23,12 @@ public class ModuleManager {
 
         // Register modules for Visuals category
         registerModule(new CropHelperModule("Crop Helper", "Shows when crops are ready for harvest", ModuleCategory.VISUALS));
-        registerModule(new WaypointsModule("Waypoints", "Highlights a set area", ModuleCategory.VISUALS));
+        registerModule(new WaypointsModule("Waypoints", "Coming Soon", ModuleCategory.VISUALS));
         registerModule(new ToolDurabilityModule("Tool Durability", "Notifies you if your tools are about to break", ModuleCategory.VISUALS));
 
         // Register modules for Gameplay category
         registerModule(new FishingNotifierModule("Fishing Notifier", "Notifies you if your bobber catched a fish", ModuleCategory.GAMEPLAY));
+        registerModule(new InventoryLockModule("Hotbar Lock", "Locks your hotbar slot to prevent dropping items accidentally.", ModuleCategory.GAMEPLAY));
 
         org.neo.shadesclient.client.ShadesClient.LOGGER.info("Initialized " + modules.size() + " modules");
     }
@@ -49,5 +50,16 @@ public class ModuleManager {
             }
         }
         return categoryModules;
+    }
+
+    // Add this new method to get a specific module by class
+    @SuppressWarnings("unchecked")
+    public static <T extends Module> T getModule(Class<T> moduleClass) {
+        for (Module module : modules) {
+            if (moduleClass.isInstance(module)) {
+                return (T) module;
+            }
+        }
+        return null;
     }
 }

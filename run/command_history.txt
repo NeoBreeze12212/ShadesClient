@@ -16,3 +16,19 @@
 /effect give @p minecraft:hunger infinite 100 true
 /effect give @p minecraft:saturation infinite 255 true
 /effect clear @p
+/time set day\
+/time set day
+/wp add 10 red
+/wp add Hello 255
+/shades
+/wp add funny 10
+/wp add YourMother 123
+/wp add HEllo 123
+/wp add hi 255
+/wp add Hello 123
+/bettermap
+/bettermap config
+/bettermap
+/bettermap config
+/bettermap toggle
+/time set day

@@ -6,25 +6,28 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
 import org.neo.shadesclient.events.EventHandler;
-import org.neo.shadesclient.commands.WaypointCommands;
+import org.neo.shadesclient.modules.InventoryLockModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.neo.shadesclient.qolitems.ShadesClientScreen;
 import org.neo.shadesclient.qolitems.ModuleManager;
 import net.fabricmc.api.ClientModInitializer;
+import org.neo.shadesclient.modules.InventoryLockModule;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class ShadesClient implements ClientModInitializer {
     public static final String MOD_ID = "shadesclient";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static KeyBinding openGuiKey;
+    private static final List<KeyBinding> moduleKeybindings = new ArrayList<>();
 
     @Override
     public void onInitializeClient() {
@@ -49,14 +52,15 @@ public class ShadesClient implements ClientModInitializer {
             EventHandler.onRenderHUD(drawContext);
         });
 
-        // Register keybinding
-        openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        // Register main GUI keybinding
+        openGuiKey = new KeyBinding(
                 "key.shadesclient.open_gui",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_RIGHT_SHIFT,
                 "category.shadesclient.general"
-        ));
-        LOGGER.info("Keybinding registered");
+        );
+        KeyBindingHelper.registerKeyBinding(openGuiKey);
+        LOGGER.info("Main keybinding registered");
 
         // Register tick event for the keybinding - Fixed to use lambda
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -81,15 +85,37 @@ public class ShadesClient implements ClientModInitializer {
                     })
             );
             LOGGER.info("/shades command registered");
-
-            // Register waypoint commands
-            WaypointCommands.register(dispatcher);
         });
 
         // Initialize modules
         ModuleManager.initializeModules();
         LOGGER.info("Modules initialized");
 
+        // Register module keybindings
+        registerModuleKeybindings();
+        LOGGER.info("Module keybindings registered");
+
         LOGGER.info("ShadesClient initialization complete");
+    }
+
+    /**
+     * Register keybindings for all modules that provide them
+     */
+    private void registerModuleKeybindings() {
+        // Register InventoryLockModule keybindings
+        InventoryLockModule inventoryLockModule = ModuleManager.getModule(InventoryLockModule.class);
+
+        if (inventoryLockModule != null) {
+            KeyBinding[] moduleBindings = inventoryLockModule.getKeybindings();
+            if (moduleBindings != null) {
+                for (KeyBinding binding : moduleBindings) {
+                    KeyBindingHelper.registerKeyBinding(binding);
+                    moduleKeybindings.add(binding);
+                    LOGGER.info("Registered keybinding: " + binding.getTranslationKey());
+                }
+            }
+        }
+
+        // Add other modules with keybindings here as needed
     }
 }
