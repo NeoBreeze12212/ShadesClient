@@ -20,6 +20,12 @@
 - 🛠️ **Durability Reminder**  
   Get notified when your tools or armor are close to breaking.
 
+- 🔒 **Inventory Slot Locking**
+  Lock your inventory slots to prevent dropping/losing important items.
+
+- 🏷️ **Client Side Item Renaming**
+  In a server and can't rename your stuff? Well its here now!
+
 ---
 
 ## 🛠️ Coming Soon
@@ -30,7 +36,7 @@
 - 🧭 **Waypoints**  
   Create and manage your own waypoints for better navigation.
 
-- 🚧 **Hypixel Features...***
+- 🚧 **Hypixel Features...**
   Features that will enchance your Hypixel server experience
   
 - 🚧 **And More...**  
