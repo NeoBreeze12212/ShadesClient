@@ -21,6 +21,9 @@ public class ModuleManager {
         registerModule(new HealthWarningModule("Health Warning", "Warns when health is low", ModuleCategory.SURVIVAL_QOL));
         registerModule(new HungerWarningModule("Hunger Warning", "Warns when your hunger is low", ModuleCategory.SURVIVAL_QOL));
 
+        // Register modules for External Tools
+        registerModule(new PlaytimeTrackerModule("Playtime Tracker", "Shows you how long you have been playing", ModuleCategory.EXTERNAL_TOOLS));
+
         // Register modules for Visuals category
         registerModule(new CropHelperModule("Crop Helper", "Shows when crops are ready for harvest", ModuleCategory.VISUALS));
         registerModule(new WaypointsModule("Waypoints", "Coming Soon", ModuleCategory.VISUALS));

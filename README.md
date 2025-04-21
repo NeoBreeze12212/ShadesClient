@@ -26,6 +26,9 @@
 - 🏷️ **Client Side Item Renaming**
   In a server and can't rename your stuff? Well its here now!
 
+- 🕛 **Playtime Tracker**  
+  Want to know how long you've been playing? This will help you!
+
 ---
 
 ## 🛠️ Coming Soon

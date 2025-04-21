@@ -7,6 +7,7 @@ import net.minecraft.client.util.math.MatrixStack;
 import org.neo.shadesclient.client.ShadesClient;
 import org.neo.shadesclient.modules.*;
 import org.neo.shadesclient.qolitems.Module;
+import org.neo.shadesclient.qolitems.ModuleGUIManager;
 import org.neo.shadesclient.qolitems.ModuleManager;
 /**
  * Central event handler that dispatches Minecraft lifecycle events to the appropriate modules
@@ -52,6 +53,9 @@ public class EventHandler {
                 }
                 else if (module instanceof CropHelperModule) {
                     ((CropHelperModule) module).tick();
+                }
+                else if (module instanceof PlaytimeTrackerModule) {
+                    // BOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
                 }
             }
         } catch (Exception e) {
@@ -107,6 +111,15 @@ public class EventHandler {
                 }
                 else if (module instanceof InventoryLockModule) {
                     ((InventoryLockModule) module).renderHUD(context);
+                }
+                else if (module instanceof PlaytimeTrackerModule) {
+                    int offsetY = 0;  // Define an appropriate Y offset
+                    int displayWidth = context.getScaledWindowWidth();  // Get the display width from context
+
+                    ((PlaytimeTrackerModule) module).renderPlaytimeInfo(context,
+                            ModuleGUIManager.getInstance().getX(),
+                            ModuleGUIManager.getInstance().getY() + offsetY,
+                            displayWidth);
                 }
             }
         } catch (Exception e) {

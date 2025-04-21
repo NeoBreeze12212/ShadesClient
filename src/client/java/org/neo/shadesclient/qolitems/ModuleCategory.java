@@ -2,7 +2,7 @@ package org.neo.shadesclient.qolitems;
 
 public enum ModuleCategory {
     SURVIVAL_QOL("Survival QOL"),
-    HYPIXEL("Hypixel"),
+    EXTERNAL_TOOLS("External Tools"),
     VISUALS("Visuals"),
     GAMEPLAY("Gameplay");
 

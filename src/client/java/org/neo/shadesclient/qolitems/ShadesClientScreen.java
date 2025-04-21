@@ -63,7 +63,7 @@ public class ShadesClientScreen extends Screen {
         addCategoryButton(ModuleCategory.SURVIVAL_QOL, leftPanelWidth, categoryY);
         categoryY += buttonHeight;
 
-        addCategoryButton(ModuleCategory.HYPIXEL, leftPanelWidth, categoryY);
+        addCategoryButton(ModuleCategory.EXTERNAL_TOOLS, leftPanelWidth, categoryY);
         categoryY += buttonHeight;
 
         addCategoryButton(ModuleCategory.VISUALS, leftPanelWidth, categoryY);
