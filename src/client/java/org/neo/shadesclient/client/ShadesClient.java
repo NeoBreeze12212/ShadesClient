@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import org.neo.shadesclient.qolitems.ShadesClientScreen;
 import org.neo.shadesclient.qolitems.ModuleManager;
+import org.neo.shadesclient.qolitems.ModuleGUIManager;
 import net.fabricmc.api.ClientModInitializer;
 import org.neo.shadesclient.modules.InventoryLockModule;
 
@@ -51,6 +52,19 @@ public class ShadesClient implements ClientModInitializer {
         HudRenderCallback.EVENT.register((drawContext, tickDelta) -> {
             EventHandler.onRenderHUD(drawContext);
         });
+
+        // Register mouse input handler
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // Check if we're in-game and not in a GUI
+            if (client.world != null && client.currentScreen == null) {
+                double mouseX = client.mouse.getX();
+                double mouseY = client.mouse.getY();
+                boolean leftMouseDown = GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+
+                handleMouse(mouseX, mouseY, leftMouseDown);
+            }
+        });
+        LOGGER.info("Mouse input handler registered");
 
         // Register main GUI keybinding
         openGuiKey = new KeyBinding(
@@ -96,6 +110,16 @@ public class ShadesClient implements ClientModInitializer {
         LOGGER.info("Module keybindings registered");
 
         LOGGER.info("ShadesClient initialization complete");
+    }
+
+    /**
+     * Handle mouse input and delegate to the ModuleGUIManager
+     * @param mouseX X position of the mouse
+     * @param mouseY Y position of the mouse
+     * @param mouseDown Whether the left mouse button is pressed
+     */
+    public void handleMouse(double mouseX, double mouseY, boolean mouseDown) {
+        ModuleGUIManager.getInstance().onMouseInput(mouseX, mouseY, mouseDown);
     }
 
     /**

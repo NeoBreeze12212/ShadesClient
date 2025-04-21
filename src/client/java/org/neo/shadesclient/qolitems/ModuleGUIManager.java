@@ -2,9 +2,11 @@ package org.neo.shadesclient.qolitems;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import org.neo.shadesclient.modules.FishingNotifierModule;
+import org.neo.shadesclient.modules.InventoryLockModule;
 import org.neo.shadesclient.modules.ToolDurabilityModule;
 import org.neo.shadesclient.modules.TorchReminderModule;
-import org.neo.shadesclient.qolitems.ModuleConfigGUI; // Correct import path
+import org.neo.shadesclient.qolitems.ModuleConfigGUI;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,14 +20,19 @@ public class ModuleGUIManager {
     // GUI positioning and styling
     private int guiX = 5;
     private int guiY = 5;
-    private int moduleSpacing = 10;
+    private int moduleSpacing = 5;
     private static final int BACKGROUND_COLOR = 0xAA000000; // Semi-transparent black
-    private static final int BORDER_COLOR = 0xFFFDE92F;     // Yellow border like in image
-    private static final int HEADER_COLOR = 0xFFFFFF55;     // Yellow text for headers
+    private static final int BORDER_COLOR = 0xFFFDE92F;     // Yellow border
+    private static final int HEADER_COLOR = 0xFF00FF00;     // Green text for headers (like in image)
     private static final int VALUE_COLOR = 0xFFFFFFFF;      // White for values
     private static final int WARNING_COLOR = 0xFFFF5555;    // Red for warnings
     private static final int SUCCESS_COLOR = 0xFF55FF55;    // Green for good values
     private static final int ICON_COLOR = 0xFFAAAAAA;       // Gray for icons
+
+    // Dragging functionality
+    private boolean isDragging = false;
+    private int dragOffsetX, dragOffsetY;
+    private static final int TITLE_BAR_HEIGHT = 10;
 
     private ModuleGUIManager() {
         // Private constructor for singleton
@@ -53,130 +60,182 @@ public class ModuleGUIManager {
         return isEnabled;
     }
 
+    public void handleMouseInput(double mouseX, double mouseY, boolean mouseDown) {
+        if (!isEnabled) return;
+
+        if (mouseDown) {
+            // Check if click is in title area of the GUI
+            if (mouseX >= guiX && mouseX <= guiX + 130 &&
+                    mouseY >= guiY && mouseY <= guiY + TITLE_BAR_HEIGHT) {
+                isDragging = true;
+                dragOffsetX = (int) (mouseX - guiX);
+                dragOffsetY = (int) (mouseY - guiY);
+            }
+        } else {
+            isDragging = false;
+        }
+
+        // Update position if dragging
+        if (isDragging) {
+            guiX = (int) (mouseX - dragOffsetX);
+            guiY = (int) (mouseY - dragOffsetY);
+
+            // Ensure GUI stays on screen
+            MinecraftClient client = MinecraftClient.getInstance();
+            int screenWidth = client.getWindow().getScaledWidth();
+            int screenHeight = client.getWindow().getScaledHeight();
+
+            guiX = Math.max(0, Math.min(guiX, screenWidth - 130));
+            guiY = Math.max(0, Math.min(guiY, screenHeight - 50));
+        }
+    }
+
     public void render(DrawContext context) {
         if (!isEnabled) return;
 
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null) return;
 
-        // Calculate total height needed for all modules
-        int totalHeight = 25; // Header height
-
-        // Add space for each enabled module
-        for (Module module : modules) {
-            if (module.isEnabled()) {
-                if (module instanceof ToolDurabilityModule) {
-                    totalHeight += 55; // Height for tool durability section
-                } else if (module instanceof TorchReminderModule) {
-                    totalHeight += 45; // Height for torch reminder section
-                }
-            }
-        }
-
-        if (totalHeight <= 25) return; // No modules to display
+        // Calculate total height based on active modules
+        int moduleHeight = calculateModuleHeight();
+        if (moduleHeight == 0) return; // No modules to display
 
         int width = 130;
         int currentY = guiY;
 
-        // Background
-        context.fill(guiX, currentY, guiX + width, currentY + totalHeight, BACKGROUND_COLOR);
+        // Background with title bar
+        context.fill(guiX, currentY, guiX + width, currentY + TITLE_BAR_HEIGHT, 0xFF000000); // Black title bar
+        context.fill(guiX, currentY + TITLE_BAR_HEIGHT, guiX + width, currentY + moduleHeight, BACKGROUND_COLOR);
 
-        // Border (with yellow color like in the example)
-        drawBorder(context, guiX, currentY, width, totalHeight);
+        // Border
+        drawBorder(context, guiX, currentY, width, moduleHeight);
 
-        // Header
-        String headerText = "— ShadesClient —";
+        // Title "ShadesClient" - smaller and in title bar
+        String headerText = "ShadesClient";
         int headerWidth = client.textRenderer.getWidth(headerText);
-        context.drawText(client.textRenderer, headerText, guiX + (width - headerWidth) / 2, currentY + 5, HEADER_COLOR, true);
+        context.drawText(client.textRenderer, headerText, guiX + (width - headerWidth) / 2, currentY + 2, HEADER_COLOR, false);
 
-        // Header separator
-        context.fill(guiX + 5, currentY + 15, guiX + width - 5, currentY + 16, BORDER_COLOR);
-
-        currentY += 20; // Move down past header
+        currentY += TITLE_BAR_HEIGHT; // Move down past title bar
 
         // Render each enabled module
         for (Module module : modules) {
             if (module.isEnabled()) {
+                // Add spacing between modules
+                if (currentY > guiY + TITLE_BAR_HEIGHT) {
+                    currentY += moduleSpacing;
+                }
+
+                // Render the appropriate module
                 if (module instanceof ToolDurabilityModule) {
                     currentY = renderToolDurabilityInfo(context, (ToolDurabilityModule) module, guiX, currentY, width);
                 } else if (module instanceof TorchReminderModule) {
                     currentY = renderTorchReminderInfo(context, (TorchReminderModule) module, guiX, currentY, width);
+                } else if (module instanceof FishingNotifierModule) {
+                    currentY = ((FishingNotifierModule) module).renderFishingInfo(context, guiX, currentY, width);
+                } else if (module instanceof InventoryLockModule) {
+                    currentY = ((InventoryLockModule) module).renderInventoryLockInfo(context, guiX, currentY, width);
                 }
             }
         }
     }
 
+    private int calculateModuleHeight() {
+        int totalHeight = TITLE_BAR_HEIGHT; // Start with title bar height
+        boolean firstModule = true;
+
+        for (Module module : modules) {
+            if (module.isEnabled()) {
+                // Add spacing except for first module
+                if (!firstModule) {
+                    totalHeight += moduleSpacing;
+                } else {
+                    firstModule = false;
+                }
+
+                if (module instanceof ToolDurabilityModule) {
+                    totalHeight += 30; // More compact height
+                } else if (module instanceof TorchReminderModule) {
+                    totalHeight += 25; // More compact height
+                } else if (module instanceof FishingNotifierModule) {
+                    totalHeight += 30; // More compact height
+                } else if (module instanceof InventoryLockModule) {
+                    totalHeight += 35; // More compact height
+                }
+            }
+        }
+
+        return totalHeight;
+    }
+
     private int renderToolDurabilityInfo(DrawContext context, ToolDurabilityModule module, int x, int y, int width) {
         MinecraftClient client = MinecraftClient.getInstance();
 
-        // Module title with pickaxe icon
-        String titleText = "⛏ Tool Durability";
-        context.drawText(client.textRenderer, titleText, x + 8, y, HEADER_COLOR, true);
+        // Module title with pickaxe icon - centered and green like in image
+        String titleText = "— Tool Durability —";
+        int titleWidth = client.textRenderer.getWidth(titleText);
+        context.drawText(client.textRenderer, titleText, x + (width - titleWidth) / 2, y, HEADER_COLOR, false);
+        y += 10;
 
-        // Draw main hand info
-        String mainHandText = "";
-        int mainHandColor = VALUE_COLOR;
-
+        // Draw main hand info - more compact
         if (!client.player.getMainHandStack().isEmpty() && client.player.getMainHandStack().isDamageable()) {
             int maxDamage = client.player.getMainHandStack().getMaxDamage();
             int damage = client.player.getMainHandStack().getDamage();
             int durabilityPercent = (int) (100 * (maxDamage - damage) / (float) maxDamage);
 
             String itemName = client.player.getMainHandStack().getName().getString();
-            mainHandText = "Main: " + itemName + ": " + durabilityPercent + "%";
+            String mainHandText = "Main Hand: " + itemName + " (" + durabilityPercent + "%)";
 
-            // Color based on durability
+            // Color based on durability - orange for warnings like in image
+            int mainHandColor;
             if (durabilityPercent <= module.getWarningThreshold()) {
-                mainHandColor = WARNING_COLOR;
+                mainHandColor = 0xFFFF7700; // Orange like in image
             } else if (durabilityPercent <= 25) {
-                mainHandColor = 0xFFFF7F00; // Orange
+                mainHandColor = 0xFFFF7700; // Orange
             } else {
-                mainHandColor = SUCCESS_COLOR;
+                mainHandColor = VALUE_COLOR; // White for normal
             }
+
+            context.drawText(client.textRenderer, mainHandText, x + 5, y, mainHandColor, false);
         } else {
-            mainHandText = "Main: No tool";
+            context.drawText(client.textRenderer, "Main Hand: -", x + 5, y, VALUE_COLOR, false);
         }
+        y += 10;
 
-        context.drawText(client.textRenderer, mainHandText, x + 10, y + 15, mainHandColor, true);
-
-        // Draw off hand info
-        String offHandText = "";
-        int offHandColor = VALUE_COLOR;
-
+        // Draw off hand info - more compact
         if (!client.player.getOffHandStack().isEmpty() && client.player.getOffHandStack().isDamageable()) {
             int maxDamage = client.player.getOffHandStack().getMaxDamage();
             int damage = client.player.getOffHandStack().getDamage();
             int durabilityPercent = (int) (100 * (maxDamage - damage) / (float) maxDamage);
 
             String itemName = client.player.getOffHandStack().getName().getString();
-            offHandText = "Off: " + itemName + ": " + durabilityPercent + "%";
+            String offHandText = "Off Hand: " + itemName + " (" + durabilityPercent + "%)";
 
             // Color based on durability
+            int offHandColor;
             if (durabilityPercent <= module.getWarningThreshold()) {
-                offHandColor = WARNING_COLOR;
+                offHandColor = 0xFFFF7700; // Orange like in image
             } else if (durabilityPercent <= 25) {
-                offHandColor = 0xFFFF7F00; // Orange
+                offHandColor = 0xFFFF7700; // Orange
             } else {
-                offHandColor = SUCCESS_COLOR;
+                offHandColor = VALUE_COLOR; // White for normal
             }
+
+            context.drawText(client.textRenderer, offHandText, x + 5, y, offHandColor, false);
         } else {
-            offHandText = "Off: No tool";
+            context.drawText(client.textRenderer, "Off Hand: -", x + 5, y, VALUE_COLOR, false);
         }
 
-        context.drawText(client.textRenderer, offHandText, x + 10, y + 30, offHandColor, true);
-
-        // Add threshold info
-        context.drawText(client.textRenderer, "Threshold: " + module.getWarningThreshold() + "%", x + 10, y + 45, VALUE_COLOR, true);
-
-        return y + 55; // Return new Y position for next module
+        return y + 10; // Return new Y position for next module
     }
 
     private int renderTorchReminderInfo(DrawContext context, TorchReminderModule module, int x, int y, int width) {
         MinecraftClient client = MinecraftClient.getInstance();
 
-        // Module title with torch icon
-        String titleText = "🔥 Torch Reminder";
-        context.drawText(client.textRenderer, titleText, x + 8, y, HEADER_COLOR, true);
+        // Module title centered and green
+        String titleText = "— Torch Reminder —";
+        int titleWidth = client.textRenderer.getWidth(titleText);
+        context.drawText(client.textRenderer, titleText, x + (width - titleWidth) / 2, y, HEADER_COLOR, false);
+        y += 10;
 
         // Get light levels
         int blockLight = client.world.getLightLevel(net.minecraft.world.LightType.BLOCK, client.player.getBlockPos());
@@ -186,17 +245,17 @@ public class ModuleGUIManager {
         // Light level info with color coding
         int lightColor;
         if (effectiveLight < module.getLightLevelThreshold()) {
-            lightColor = WARNING_COLOR;
+            lightColor = 0xFFFF7700; // Orange for warning like in image
         } else if (effectiveLight < 10) {
-            lightColor = 0xFFFF7F00; // Orange
+            lightColor = 0xFFFF7700; // Orange
         } else {
-            lightColor = SUCCESS_COLOR;
+            lightColor = VALUE_COLOR; // White for normal
         }
 
-        context.drawText(client.textRenderer, "Light: " + effectiveLight, x + 10, y + 15, lightColor, true);
-        context.drawText(client.textRenderer, "Threshold: " + module.getLightLevelThreshold(), x + 10, y + 30, VALUE_COLOR, true);
+        context.drawText(client.textRenderer, "Light Level: " + effectiveLight + " (Threshold: " + module.getLightLevelThreshold() + ")",
+                x + 5, y, lightColor, false);
 
-        return y + 45; // Return new Y position for next module
+        return y + 15; // Return new Y position for next module
     }
 
     private void drawBorder(DrawContext context, int x, int y, int width, int height) {
@@ -210,32 +269,21 @@ public class ModuleGUIManager {
         context.fill(x + width - 1, y, x + width, y + height, BORDER_COLOR);
     }
 
-    // Method to be called from game's render loop
     public void onRenderGameHud(DrawContext context) {
         render(context);
 
-        // Also call module-specific rendering if they use GUI notification type
+        // Also call renderHUD for modules that need to render directly on the game HUD
         for (Module module : modules) {
-            if (module.isEnabled()) {
-                if (module instanceof ToolDurabilityModule) {
-                    ToolDurabilityModule toolModule = (ToolDurabilityModule) module;
-                    if (toolModule.isShowDurabilityOverlay() &&
-                            toolModule.getNotificationType().equals(ModuleConfigGUI.NotificationType.GUI)) {
-                        // Using equals() instead of == for enum comparison
-                        toolModule.renderDurabilityOverlay(context);
-                    }
-                } else if (module instanceof TorchReminderModule) {
-                    TorchReminderModule torchModule = (TorchReminderModule) module;
-                    if (torchModule.getNotificationType().equals(ModuleConfigGUI.NotificationType.GUI)) {
-                        // Using equals() instead of == for enum comparison
-                        torchModule.renderLightLevelOverlay(context);
-                    }
-                }
+            if (module.isEnabled() && module instanceof InventoryLockModule) {
+                ((InventoryLockModule) module).renderHUD(context);
             }
         }
     }
 
-    // Methods for setting GUI position
+    public void onMouseInput(double mouseX, double mouseY, boolean mouseDown) {
+        handleMouseInput(mouseX, mouseY, mouseDown);
+    }
+
     public void setPosition(int x, int y) {
         this.guiX = x;
         this.guiY = y;

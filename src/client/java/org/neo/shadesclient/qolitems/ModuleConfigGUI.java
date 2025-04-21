@@ -10,46 +10,49 @@ import net.minecraft.text.Text;
 import net.minecraft.text.OrderedText;
 import org.neo.shadesclient.modules.ToolDurabilityModule;
 import org.neo.shadesclient.modules.TorchReminderModule;
+import org.neo.shadesclient.modules.FishingNotifierModule;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class ModuleConfigGUI extends Screen {
-    // Updated color scheme to match ShadesClientScreen
+    // Colors - using the same color scheme as ShadesClientScreen
     private static final int BACKGROUND_COLOR = 0x90000000; // Semi-transparent black
     private static final int HEADER_COLOR = 0xFF1A1A1A; // Dark header
-    private static final int SECTION_BACKGROUND = 0xFF262626; // Module background color
-    private static final int SECTION_HOVER_COLOR = 0xFF383838; // Module hover color
-    private static final int BORDER_COLOR = 0xFF404040; // Dark gray for borders
-    private static final int ACTIVE_COLOR = 0xFF4080FF; // Blue for enabled/active items
+    private static final int SELECTED_CATEGORY_COLOR = 0xFF3050CF; // Blue for selected category
+    private static final int CATEGORY_HOVER_COLOR = 0xFF404040; // Hover color
+    private static final int CATEGORY_COLOR = 0xFF303030; // Normal category color
+    private static final int MODULE_COLOR = 0xFF262626; // Module background
+    private static final int MODULE_HOVER_COLOR = 0xFF383838; // Module hover
+    private static final int ENABLED_COLOR = 0xFF4080FF; // Blue for enabled items
     private static final int TEXT_COLOR = 0xFFE0E0E0; // Light gray for text
-    private static final int TITLE_COLOR = 0xFFFFFFFF; // White for titles
-    private static final int SCROLL_BUTTON_COLOR = 0xFF404040; // Dark gray for scroll buttons
-    private static final int SCROLL_BUTTON_HOVER_COLOR = 0xFF606060; // Lighter gray for hover
+    private static final int BORDER_COLOR = 0xFF404040; // Border color
 
     private final Screen parent;
     private final String moduleName;
-    private final Object module; // Either ToolDurabilityModule or TorchReminderModule
+    private final Object module; // Either ToolDurabilityModule, TorchReminderModule, or FishingNotifierModule
 
-    private final List<NotificationOption> notificationOptions = new ArrayList<>();
-    private NotificationType selectedNotificationType = NotificationType.GUI;
+    // Categories for settings
+    private enum SettingCategory {
+        MODULE_SETTINGS("Module Settings"),
+        NOTIFICATION_SETTINGS("Notification Settings");
 
-    // Updated GUI dimensions
-    private int guiLeft;
-    private int guiTop;
-    private int guiWidth = 380; // Wider for better layout
-    private int guiHeight = 240; // Taller for better spacing
+        private final String displayName;
 
-    // Scroll variables
-    private int scrollY = 0;
-    private int maxScrollY = 0;
-    private ButtonWidget upScrollButton;
-    private ButtonWidget downScrollButton;
+        SettingCategory(String displayName) {
+            this.displayName = displayName;
+        }
 
-    // Animation variables
-    private long openTime;
-    private static final int ANIMATION_DURATION = 300; // ms
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
 
+    private SettingCategory selectedCategory = SettingCategory.MODULE_SETTINGS;
+    private final List<CategoryButton> categoryButtons = new ArrayList<>();
+    private final List<SettingOption> settingOptions = new ArrayList<>();
+
+    // Notification types
     public enum NotificationType {
         ACTION_BAR("Action Bar"),
         TITLE("Title Screen"),
@@ -66,345 +69,462 @@ public class ModuleConfigGUI extends Screen {
         }
     }
 
-    private class NotificationOption {
-        private final NotificationType type;
-        private boolean enabled;
+    // Layout properties
+    private int leftPanelWidth = 180;
+    private int contentStartX;
+    private int contentWidth;
 
-        public NotificationOption(NotificationType type, boolean enabled) {
-            this.type = type;
-            this.enabled = enabled;
+    // Animation variables
+    private long openTime;
+    private static final int ANIMATION_DURATION = 300; // ms
+
+    // Setting option class
+    private class SettingOption {
+        private final String name;
+        private final String description;
+        private Object associatedWidget;
+        private final SettingCategory category;
+
+        public SettingOption(String name, String description, SettingCategory category) {
+            this.name = name;
+            this.description = description;
+            this.category = category;
+        }
+
+        public void setAssociatedButton(Object widget) {
+            this.associatedWidget = widget;
+        }
+
+        public Object getAssociatedWidget() {
+            return associatedWidget;
+        }
+
+        public ButtonWidget getButtonWidget() {
+            if (associatedWidget instanceof ButtonWidget) {
+                return (ButtonWidget) associatedWidget;
+            }
+            return null;
         }
     }
 
     public ModuleConfigGUI(Screen parent, String moduleName, Object module) {
-        super(Text.literal(moduleName + " Configuration"));
+        super(Text.of(moduleName + " Configuration"));  // Changed to Text.of instead of Text.literal
         this.parent = parent;
         this.moduleName = moduleName;
         this.module = module;
         this.openTime = System.currentTimeMillis();
-
-        // Initialize default notification options
-        for (NotificationType type : NotificationType.values()) {
-            notificationOptions.add(new NotificationOption(type, type == NotificationType.GUI));
-        }
     }
 
     @Override
     protected void init() {
         super.init();
 
-        // Center the GUI
-        this.guiLeft = (this.width - this.guiWidth) / 2;
-        this.guiTop = (this.height - this.guiHeight) / 2;
+        this.leftPanelWidth = 180;
+        this.contentStartX = leftPanelWidth + 10;
+        this.contentWidth = width - leftPanelWidth - 20;
 
-        // Add "Done" button at bottom
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Save & Close"), button -> {
+        // Clear existing buttons
+        categoryButtons.clear();
+        settingOptions.clear();
+
+        // Add category buttons on the left side
+        int categoryY = 50;
+        int buttonHeight = 30;
+
+        for (SettingCategory category : SettingCategory.values()) {
+            addCategoryButton(category, categoryY);
+            categoryY += buttonHeight;
+        }
+
+        // Add "Back" button at bottom of left panel
+        this.addDrawableChild(ButtonWidget.builder(Text.of("Back"), button -> {
+            MinecraftClient.getInstance().setScreen(parent);
+        }).dimensions(10, height - 40, leftPanelWidth - 20, 30).build());
+
+        // Add "Save" button at bottom right
+        this.addDrawableChild(ButtonWidget.builder(Text.of("Save"), button -> {
             saveSettings();
             MinecraftClient.getInstance().setScreen(parent);
-        }).dimensions(this.guiLeft + this.guiWidth - 120, this.guiTop + this.guiHeight - 35, 110, 25).build());
+        }).dimensions(width - 110, height - 40, 100, 30).build());
 
-        // Add "Cancel" button at bottom
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), button -> {
-            MinecraftClient.getInstance().setScreen(parent);
-        }).dimensions(this.guiLeft + 10, this.guiTop + this.guiHeight - 35, 110, 25).build());
+        // Initialize module settings
+        initializeSettings();
 
-        // Add scroll buttons if needed
-        upScrollButton = ButtonWidget.builder(Text.literal("▲"), button -> {
-            scrollUp();
-        }).dimensions(this.guiLeft + this.guiWidth - 30, this.guiTop + 50, 20, 20).build();
-
-        downScrollButton = ButtonWidget.builder(Text.literal("▼"), button -> {
-            scrollDown();
-        }).dimensions(this.guiLeft + this.guiWidth - 30, this.guiTop + this.guiHeight - 60, 20, 20).build();
-
-        addDrawableChild(upScrollButton);
-        addDrawableChild(downScrollButton);
-
-        // Add module-specific settings
-        addModuleSettings();
-
-        // Reset scroll position
-        scrollY = 0;
-        calculateMaxScroll();
-        updateScrollButtonVisibility();
+        // Add module-specific settings based on the selected category
+        refreshSettingsForCategory();
     }
 
-    private void addModuleSettings() {
-        int contentWidth = this.guiWidth - 50;
-        int startY = this.guiTop + 50 - scrollY;
-        int y = startY;
+    private void addCategoryButton(SettingCategory category, int y) {
+        CategoryButton button = new CategoryButton(10, y, leftPanelWidth - 20, 30,
+                Text.of(category.getDisplayName()),
+                btn -> {
+                    selectedCategory = category;
+                    clearAndRebuildUI();
+                }, category);
+        categoryButtons.add(button);
+        addDrawableChild(button);
+    }
 
-        // Left side - Module specific settings
+    // New method to completely clear and rebuild the UI
+    private void clearAndRebuildUI() {
+        // Save current state before clearing
+        SettingCategory currentCategory = selectedCategory;
+
+        // Clear everything
+        clearChildren();
+
+        // Restore state
+        selectedCategory = currentCategory;
+
+        // Re-initialize all UI elements
+        init();
+    }
+
+    private void initializeSettings() {
+        // Add module-specific settings
         if (module instanceof ToolDurabilityModule) {
             ToolDurabilityModule toolModule = (ToolDurabilityModule) module;
 
-            // Module settings section
-            drawSettingsSection(y, "Module Settings");
-            y += 30;
+            // Add module settings
+            settingOptions.add(new SettingOption("Warning Threshold",
+                    "Sets the durability percentage at which warnings will appear",
+                    SettingCategory.MODULE_SETTINGS));
 
-            // Add slider for warning threshold
-            this.addDrawableChild(new SliderWidget(
-                    this.guiLeft + 20, y, contentWidth - 40, 20,
-                    Text.literal("Warning Threshold: " + toolModule.getWarningThreshold() + "%"),
-                    toolModule.getWarningThreshold() / 100.0f
-            ) {
-                @Override
-                protected void updateMessage() {
-                    int value = (int) (this.value * 100);
-                    this.setMessage(Text.literal("Warning Threshold: " + value + "%"));
-                }
+            settingOptions.add(new SettingOption("Play Sound",
+                    "Play a sound when tool durability is low",
+                    SettingCategory.MODULE_SETTINGS));
 
-                @Override
-                protected void applyValue() {
-                    int value = (int) (this.value * 100);
-                    toolModule.setWarningThreshold(value);
-                }
-            });
-
-            y += 30;
-
-            // Add toggle for sound
-            this.addDrawableChild(
-                    CyclingButtonWidget.<Boolean>builder(value -> Text.literal("Play Sound: " + (value ? "ON" : "OFF")))
-                            .values(true, false)
-                            .initially(toolModule.isPlaySound())
-                            .build(this.guiLeft + 20, y, contentWidth - 40, 20, Text.literal("Play Sound"),
-                                    (button, value) -> toolModule.setPlaySound(value))
-            );
-
-            y += 30;
-
-            // Add toggle for overlay
-            this.addDrawableChild(
-                    CyclingButtonWidget.<Boolean>builder(value -> Text.literal("Show Overlay: " + (value ? "ON" : "OFF")))
-                            .values(true, false)
-                            .initially(toolModule.isShowDurabilityOverlay())
-                            .build(this.guiLeft + 20, y, contentWidth - 40, 20, Text.literal("Show Overlay"),
-                                    (button, value) -> toolModule.setShowDurabilityOverlay(value))
-            );
-
+            settingOptions.add(new SettingOption("Show Overlay",
+                    "Show durability information on screen",
+                    SettingCategory.MODULE_SETTINGS));
         } else if (module instanceof TorchReminderModule) {
             TorchReminderModule torchModule = (TorchReminderModule) module;
 
-            // Module settings section
-            drawSettingsSection(y, "Module Settings");
-            y += 30;
+            // Add module settings
+            settingOptions.add(new SettingOption("Light Level Threshold",
+                    "Minimum light level before warning appears",
+                    SettingCategory.MODULE_SETTINGS));
 
-            // Add slider for light level threshold
-            this.addDrawableChild(new SliderWidget(
-                    this.guiLeft + 20, y, contentWidth - 40, 20,
-                    Text.literal("Light Level Threshold: " + torchModule.getLightLevelThreshold()),
-                    torchModule.getLightLevelThreshold() / 15.0f
-            ) {
-                @Override
-                protected void updateMessage() {
-                    int value = (int) (this.value * 15);
-                    this.setMessage(Text.literal("Light Level Threshold: " + value));
-                }
+            settingOptions.add(new SettingOption("Cooldown",
+                    "Time between notifications",
+                    SettingCategory.MODULE_SETTINGS));
+        } else if (module instanceof FishingNotifierModule) {
+            FishingNotifierModule fishingModule = (FishingNotifierModule) module;
 
-                @Override
-                protected void applyValue() {
-                    int value = (int) (this.value * 15);
-                    torchModule.setLightLevelThreshold(value);
-                }
-            });
+            // Add fishing module settings
+            settingOptions.add(new SettingOption("Play Sound",
+                    "Play a sound when fish is detected",
+                    SettingCategory.MODULE_SETTINGS));
 
-            y += 30;
+            settingOptions.add(new SettingOption("Sound Volume",
+                    "Adjust the volume of notification sounds",
+                    SettingCategory.MODULE_SETTINGS));
 
-            // Add slider for notification cooldown
-            this.addDrawableChild(new SliderWidget(
-                    this.guiLeft + 20, y, contentWidth - 40, 20,
-                    Text.literal("Cooldown: " + (torchModule.getNotificationCooldown() / 1000) + "s"),
-                    torchModule.getNotificationCooldown() / 10000.0f
-            ) {
-                @Override
-                protected void updateMessage() {
-                    int value = (int) (this.value * 10000);
-                    this.setMessage(Text.literal("Cooldown: " + (value / 1000) + "s"));
-                }
-
-                @Override
-                protected void applyValue() {
-                    int value = (int) (this.value * 10000);
-                    torchModule.setNotificationCooldown(value);
-                }
-            });
+            settingOptions.add(new SettingOption("Always Show GUI With Rod",
+                    "Show fishing GUI whenever holding a fishing rod",
+                    SettingCategory.MODULE_SETTINGS));
         }
 
-        // All modules get notification settings
-        y += 50;
-        drawSettingsSection(y, "Notification Settings");
-        y += 30;
-
-        // Add notification type toggles
-        for (int i = 0; i < notificationOptions.size(); i++) {
-            NotificationOption option = notificationOptions.get(i);
-            final int index = i;
-
-            this.addDrawableChild(
-                    CyclingButtonWidget.<Boolean>builder(value -> Text.literal(option.type.getName() + ": " + (value ? "ON" : "OFF")))
-                            .values(true, false)
-                            .initially(option.enabled)
-                            .build(this.guiLeft + 20, y, contentWidth - 40, 20,
-                                    Text.literal(option.type.getName()),
-                                    (button, value) -> toggleNotificationOption(index, value))
-            );
-
-            y += 30;
+        // Add notification settings for all module types
+        for (NotificationType type : NotificationType.values()) {
+            settingOptions.add(new SettingOption(type.getName(),
+                    "Use " + type.getName() + " for notifications",
+                    SettingCategory.NOTIFICATION_SETTINGS));
         }
-
-        // Update max scroll based on the content height
-        maxScrollY = Math.max(0, y - (this.guiTop + this.guiHeight - 40));
     }
 
-    private void drawSettingsSection(int y, String title) {
-        // This method doesn't actually draw anything but helps with organizing the sections
-        // The actual drawing happens in the render method
-    }
-
-    private void toggleNotificationOption(int index, boolean value) {
-        // When enabling one option, disable others
-        if (value) {
-            for (int i = 0; i < notificationOptions.size(); i++) {
-                notificationOptions.get(i).enabled = (i == index);
-            }
-            selectedNotificationType = notificationOptions.get(index).type;
-        } else {
-            // Don't allow all options to be disabled
-            boolean anyEnabled = false;
-            for (NotificationOption option : notificationOptions) {
-                if (option.enabled && notificationOptions.indexOf(option) != index) {
-                    anyEnabled = true;
-                    break;
+    private void refreshSettingsForCategory() {
+        // Remove all existing setting widgets
+        for (SettingOption option : settingOptions) {
+            if (option.getAssociatedWidget() != null) {
+                if (option.getAssociatedWidget() instanceof ButtonWidget) {
+                    remove((ButtonWidget) option.getAssociatedWidget());
                 }
-            }
-
-            if (!anyEnabled) {
-                notificationOptions.get(index).enabled = true;
+                option.setAssociatedButton(null);
             }
         }
 
-        // Refresh buttons
-        this.clearAndInit();
+        // Add widgets for current category
+        int y = 80; // Starting position below header
+        int settingHeight = 30;
+        int settingGap = 40; // Provide space for descriptions
+
+        for (SettingOption option : settingOptions) {
+            if (option.category != selectedCategory) continue;
+
+            if (module instanceof ToolDurabilityModule) {
+                ToolDurabilityModule toolModule = (ToolDurabilityModule) module;
+
+                if (selectedCategory == SettingCategory.MODULE_SETTINGS) {
+                    if (option.name.equals("Warning Threshold")) {
+                        // Create custom slider with fixed text
+                        final int currentValue = toolModule.getWarningThreshold();
+                        SliderWidget slider = new SliderWidget(
+                                contentStartX, y, contentWidth, settingHeight,
+                                Text.of("Warning Threshold: " + currentValue + "%"),
+                                currentValue / 100.0f
+                        ) {
+                            @Override
+                            protected void updateMessage() {
+                                int value = (int) (this.value * 100);
+                                this.setMessage(Text.of("Warning Threshold: " + value + "%"));
+                            }
+
+                            @Override
+                            protected void applyValue() {
+                                int value = (int) (this.value * 100);
+                                toolModule.setWarningThreshold(value);
+                            }
+                        };
+                        addDrawableChild(slider);
+                        option.setAssociatedButton(slider);
+                    } else if (option.name.equals("Play Sound")) {
+                        boolean isEnabled = toolModule.isPlaySound();
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of("Play Sound: " + (isEnabled ? "ON" : "OFF")),
+                                        btn -> {
+                                            toolModule.setPlaySound(!toolModule.isPlaySound());
+                                            btn.setMessage(Text.of("Play Sound: " + (toolModule.isPlaySound() ? "ON" : "OFF")));
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    } else if (option.name.equals("Show Overlay")) {
+                        boolean isEnabled = toolModule.isShowDurabilityOverlay();
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of("Show Overlay: " + (isEnabled ? "ON" : "OFF")),
+                                        btn -> {
+                                            toolModule.setShowDurabilityOverlay(!toolModule.isShowDurabilityOverlay());
+                                            btn.setMessage(Text.of("Show Overlay: " + (toolModule.isShowDurabilityOverlay() ? "ON" : "OFF")));
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    }
+                }
+            } else if (module instanceof TorchReminderModule) {
+                TorchReminderModule torchModule = (TorchReminderModule) module;
+
+                if (selectedCategory == SettingCategory.MODULE_SETTINGS) {
+                    if (option.name.equals("Light Level Threshold")) {
+                        final int currentValue = torchModule.getLightLevelThreshold();
+                        SliderWidget slider = new SliderWidget(
+                                contentStartX, y, contentWidth, settingHeight,
+                                Text.of("Light Level Threshold: " + currentValue),
+                                currentValue / 15.0f
+                        ) {
+                            @Override
+                            protected void updateMessage() {
+                                int value = (int) (this.value * 15);
+                                this.setMessage(Text.of("Light Level Threshold: " + value));
+                            }
+
+                            @Override
+                            protected void applyValue() {
+                                int value = (int) (this.value * 15);
+                                torchModule.setLightLevelThreshold(value);
+                            }
+                        };
+                        addDrawableChild(slider);
+                        option.setAssociatedButton(slider);
+                    } else if (option.name.equals("Cooldown")) {
+                        final int currentValue = (int) torchModule.getNotificationCooldown();
+                        SliderWidget slider = new SliderWidget(
+                                contentStartX, y, contentWidth, settingHeight,
+                                Text.of("Cooldown: " + (currentValue / 1000) + "s"),
+                                currentValue / 10000.0f
+                        ) {
+                            @Override
+                            protected void updateMessage() {
+                                int value = (int) (this.value * 10000);
+                                this.setMessage(Text.of("Cooldown: " + (value / 1000) + "s"));
+                            }
+
+                            @Override
+                            protected void applyValue() {
+                                int value = (int) (this.value * 10000);
+                                torchModule.setNotificationCooldown(value);
+                            }
+                        };
+                        addDrawableChild(slider);
+                        option.setAssociatedButton(slider);
+                    }
+                }
+            } else if (module instanceof FishingNotifierModule) {
+                FishingNotifierModule fishingModule = (FishingNotifierModule) module;
+
+                if (selectedCategory == SettingCategory.MODULE_SETTINGS) {
+                    if (option.name.equals("Play Sound")) {
+                        boolean isEnabled = fishingModule.isSoundEnabled();
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of("Play Sound: " + (isEnabled ? "ON" : "OFF")),
+                                        btn -> {
+                                            fishingModule.setPlaySound(!fishingModule.isSoundEnabled());
+                                            btn.setMessage(Text.of("Play Sound: " + (fishingModule.isSoundEnabled() ? "ON" : "OFF")));
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    } else if (option.name.equals("Sound Volume")) {
+                        final float currentValue = fishingModule.getSoundVolume();
+                        SliderWidget slider = new SliderWidget(
+                                contentStartX, y, contentWidth, settingHeight,
+                                Text.of("Sound Volume: " + (int)(currentValue * 100) + "%"),
+                                currentValue
+                        ) {
+                            @Override
+                            protected void updateMessage() {
+                                float value = (float) this.value;
+                                this.setMessage(Text.of("Sound Volume: " + (int)(value * 100) + "%"));
+                            }
+
+                            @Override
+                            protected void applyValue() {
+                                fishingModule.setSoundVolume((float) this.value);
+                            }
+                        };
+                        addDrawableChild(slider);
+                        option.setAssociatedButton(slider);
+                    } else if (option.name.equals("Always Show GUI With Rod")) {
+                        boolean isEnabled = fishingModule.isAlwaysShowGuiWithRod();
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of("Always Show GUI With Rod: " + (isEnabled ? "ON" : "OFF")),
+                                        btn -> {
+                                            fishingModule.setAlwaysShowGuiWithRod(!fishingModule.isAlwaysShowGuiWithRod());
+                                            btn.setMessage(Text.of("Always Show GUI With Rod: " + (fishingModule.isAlwaysShowGuiWithRod() ? "ON" : "OFF")));
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    }
+                }
+            }
+
+            // Create notification type buttons
+            if (selectedCategory == SettingCategory.NOTIFICATION_SETTINGS) {
+                for (NotificationType type : NotificationType.values()) {
+                    if (option.name.equals(type.getName())) {
+                        final NotificationType thisType = type;
+                        NotificationType currentType = getCurrentNotificationType();
+                        boolean isSelected = currentType == thisType;
+
+                        ButtonWidget button = ButtonWidget.builder(
+                                        Text.of((isSelected ? "● " : "○ ") + type.getName()),
+                                        btn -> {
+                                            // Update the module's notification type directly
+                                            if (module instanceof ToolDurabilityModule) {
+                                                ((ToolDurabilityModule) module).setNotificationType(thisType);
+                                            } else if (module instanceof TorchReminderModule) {
+                                                ((TorchReminderModule) module).setNotificationType(thisType);
+                                            } else if (module instanceof FishingNotifierModule) {
+                                                ((FishingNotifierModule) module).setNotificationType(thisType);
+                                            }
+
+                                            // Rebuild UI to reflect the changes
+                                            clearAndRebuildUI();
+                                        })
+                                .dimensions(contentStartX, y, contentWidth, settingHeight)
+                                .build();
+
+                        addDrawableChild(button);
+                        option.setAssociatedButton(button);
+                    }
+                }
+            }
+
+            y += settingHeight + settingGap;
+        }
     }
 
-    private void scrollUp() {
-        scrollY = Math.max(0, scrollY - 30);
-        updateScrollButtonVisibility();
-        clearAndInit();
+    // Helper method to get the current notification type from any module
+    private NotificationType getCurrentNotificationType() {
+        if (module instanceof ToolDurabilityModule) {
+            return ((ToolDurabilityModule) module).getNotificationType();
+        } else if (module instanceof TorchReminderModule) {
+            return ((TorchReminderModule) module).getNotificationType();
+        } else if (module instanceof FishingNotifierModule) {
+            return ((FishingNotifierModule) module).getNotificationType();
+        }
+        return NotificationType.GUI; // Default
     }
 
-    private void scrollDown() {
-        scrollY = Math.min(maxScrollY, scrollY + 30);
-        updateScrollButtonVisibility();
-        clearAndInit();
-    }
+    private void saveSettings() {
+        // Since we're now applying settings directly when buttons are clicked,
+        // this method is mostly for handling any final cleanup or validation
 
-    private void calculateMaxScroll() {
-        // This will be calculated when adding module settings
-    }
-
-    private void updateScrollButtonVisibility() {
-        upScrollButton.visible = scrollY > 0;
-        downScrollButton.visible = scrollY < maxScrollY;
+        // Nothing needed here currently, as all settings are applied immediately
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Render the background
+        renderBackgroundTexture(context);
+
         long timeSinceOpen = System.currentTimeMillis() - openTime;
         float animationProgress = Math.min(1.0f, (float) timeSinceOpen / ANIMATION_DURATION);
 
-        // Render background with animation
-        this.renderBackground(context, mouseX, mouseY, delta);
-
-        // Draw module GUI background with animation
-        int expandedWidth = (int) (this.guiWidth * animationProgress);
-        int expandedHeight = (int) (this.guiHeight * animationProgress);
-        int animatedLeft = this.guiLeft + (this.guiWidth - expandedWidth) / 2;
-        int animatedTop = this.guiTop + (this.guiHeight - expandedHeight) / 2;
-
         if (animationProgress < 1.0f) {
+            // Animated display
+            int expandedWidth = (int) (width * animationProgress);
+            int expandedHeight = (int) (height * animationProgress);
+            int animatedLeft = (width - expandedWidth) / 2;
+            int animatedTop = (height - expandedHeight) / 2;
+
             context.fill(animatedLeft, animatedTop, animatedLeft + expandedWidth, animatedTop + expandedHeight, BACKGROUND_COLOR);
         } else {
             // Full animation completed, draw the complete UI
 
-            // Main background
-            context.fill(this.guiLeft, this.guiTop, this.guiLeft + this.guiWidth, this.guiTop + this.guiHeight, BACKGROUND_COLOR);
+            // Left panel - darker background
+            context.fill(0, 0, leftPanelWidth, height, BACKGROUND_COLOR);
 
-            // Header background
-            context.fill(this.guiLeft, this.guiTop, this.guiLeft + this.guiWidth, this.guiTop + 35, HEADER_COLOR);
+            // Right panel - semi-transparent
+            context.fill(leftPanelWidth, 0, width, height, 0x80000000);
 
-            // Draw border around the entire GUI
-            drawBorder(context, this.guiLeft, this.guiTop, this.guiWidth, this.guiHeight);
+            // Top header
+            context.fill(0, 0, width, 40, HEADER_COLOR);
 
-            // Draw header with gradient
-            String headerText = this.moduleName + " Configuration";
-            int headerWidth = this.textRenderer.getWidth(headerText);
-            context.drawText(this.textRenderer, headerText, this.guiLeft + (this.guiWidth - headerWidth) / 2, this.guiTop + 13, TITLE_COLOR, true);
+            // Draw single title clearly centered
+            String titleText = moduleName + " Configuration";
+            int titleWidth = textRenderer.getWidth(titleText);
+            context.drawText(textRenderer, titleText, (width - titleWidth) / 2, 15, TEXT_COLOR, false);
 
-            // Draw header separator line
-            context.fill(this.guiLeft, this.guiTop + 35, this.guiLeft + this.guiWidth, this.guiTop + 36, BORDER_COLOR);
+            // Draw option descriptions
+            drawOptionDescriptions(context);
 
-            // Draw module settings sections
-            renderSettingsSections(context);
-
-            // Draw footer separator line
-            context.fill(this.guiLeft, this.guiTop + this.guiHeight - 45, this.guiLeft + this.guiWidth, this.guiTop + this.guiHeight - 44, BORDER_COLOR);
+            // Draw version info
+            context.drawText(textRenderer, "ShadesClient v1.0.0", 10, height - 15, 0xAAAAAA, true);
         }
 
+        // Draw buttons last
         super.render(context, mouseX, mouseY, delta);
     }
 
-    private void renderSettingsSections(DrawContext context) {
-        int contentWidth = this.guiWidth - 50;
-        int startY = this.guiTop + 50;
-        int y = startY;
+    private void drawOptionDescriptions(DrawContext context) {
+        for (SettingOption option : settingOptions) {
+            if (option.category == selectedCategory && option.getAssociatedWidget() != null) {
+                if (option.getAssociatedWidget() instanceof ButtonWidget) {
+                    ButtonWidget button = (ButtonWidget) option.getAssociatedWidget();
+                    int descY = button.getY() + button.getHeight() + 5;
 
-        // Module Settings section
-        context.fill(this.guiLeft + 10, startY - 10, this.guiLeft + this.guiWidth - 10, startY + 10, SECTION_BACKGROUND);
-        String moduleSettingsText = "Module Settings";
-        int moduleSettingsWidth = this.textRenderer.getWidth(moduleSettingsText);
-        context.drawText(this.textRenderer, moduleSettingsText,
-                this.guiLeft + (this.guiWidth - moduleSettingsWidth) / 2,
-                startY - 5, TEXT_COLOR, true);
+                    // Draw description with proper wrapping
+                    List<OrderedText> lines = textRenderer.wrapLines(
+                            Text.of(option.description), contentWidth);
 
-        // Skip past the module settings (this varies by module type)
-        if (module instanceof ToolDurabilityModule) {
-            y += 90; // Approx height for 3 settings
-        } else if (module instanceof TorchReminderModule) {
-            y += 60; // Approx height for 2 settings
+                    for (int i = 0; i < lines.size(); i++) {
+                        context.drawText(textRenderer, lines.get(i),
+                                contentStartX, descY + (i * 10), 0xAAAAAA, false);
+                    }
+                }
+            }
         }
-
-        // Notification Settings section
-        context.fill(this.guiLeft + 10, y - 10, this.guiLeft + this.guiWidth - 10, y + 10, SECTION_BACKGROUND);
-        String notificationSettingsText = "Notification Settings";
-        int notificationSettingsWidth = this.textRenderer.getWidth(notificationSettingsText);
-        context.drawText(this.textRenderer, notificationSettingsText,
-                this.guiLeft + (this.guiWidth - notificationSettingsWidth) / 2,
-                y - 5, TEXT_COLOR, true);
     }
 
-    private void drawBorder(DrawContext context, int x, int y, int width, int height) {
-        // Top border
-        context.fill(x, y, x + width, y + 1, BORDER_COLOR);
-        // Bottom border
-        context.fill(x, y + height - 1, x + width, y + height, BORDER_COLOR);
-        // Left border
-        context.fill(x, y, x + 1, y + height, BORDER_COLOR);
-        // Right border
-        context.fill(x + width - 1, y, x + width, y + height, BORDER_COLOR);
-    }
-
-    private void saveSettings() {
-        if (module instanceof ToolDurabilityModule) {
-            ToolDurabilityModule toolModule = (ToolDurabilityModule) module;
-            toolModule.setNotificationType(selectedNotificationType);
-            // Any additional settings are saved in real-time through the widgets
-        } else if (module instanceof TorchReminderModule) {
-            TorchReminderModule torchModule = (TorchReminderModule) module;
-            torchModule.setNotificationType(selectedNotificationType);
-            // Any additional settings are saved in real-time through the widgets
-        }
+    private void renderBackgroundTexture(DrawContext context) {
+        context.fill(0, 0, width, height, 0xC0101010); // Semi-transparent dark background
     }
 
     @Override
@@ -412,11 +532,26 @@ public class ModuleConfigGUI extends Screen {
         return false;
     }
 
-    // Helper method to draw multiline descriptions with proper wrapping
-    private void drawMultilineText(DrawContext context, String text, int x, int y, int maxWidth, int color) {
-        List<OrderedText> lines = textRenderer.wrapLines(Text.literal(text), maxWidth);
-        for (int i = 0; i < lines.size(); i++) {
-            context.drawText(textRenderer, lines.get(i), x, y + (i * 10), color, false);
+    class CategoryButton extends ButtonWidget {
+        private final SettingCategory category;
+
+        public CategoryButton(int x, int y, int width, int height, Text message, PressAction onPress, SettingCategory category) {
+            super(x, y, width, height, message, onPress, DEFAULT_NARRATION_SUPPLIER);
+            this.category = category;
+        }
+
+        @Override
+        public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+            int color = category == selectedCategory ? SELECTED_CATEGORY_COLOR :
+                    isHovered() ? CATEGORY_HOVER_COLOR : CATEGORY_COLOR;
+
+            context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), color);
+
+            // Text properly centered in button
+            int textX = getX() + getWidth() / 2 - textRenderer.getWidth(getMessage()) / 2;
+            int textY = getY() + (getHeight() - 8) / 2;
+
+            context.drawText(textRenderer, getMessage(), textX, textY, TEXT_COLOR, false);
         }
     }
 }

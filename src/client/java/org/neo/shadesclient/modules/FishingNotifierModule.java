@@ -5,44 +5,24 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.entity.projectile.FishingBobberEntity;
 import net.minecraft.item.FishingRodItem;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 
 import org.neo.shadesclient.client.ShadesClient;
-import org.neo.shadesclient.modules.configs.FishingNotifierConfig;
 import org.neo.shadesclient.qolitems.ModuleCategory;
 import org.neo.shadesclient.qolitems.Module;
+import org.neo.shadesclient.qolitems.ModuleConfigGUI;
 
 public class FishingNotifierModule extends Module {
-    // Notification types
-    private NotificationType notificationType = NotificationType.ACTION_BAR;
+    // Notification types - using the shared enum from ModuleConfigGUI
+    private ModuleConfigGUI.NotificationType notificationType = ModuleConfigGUI.NotificationType.GUI;
 
     // Statistics tracking
     private int fishCaught = 0;
     private long fishingStartTime = 0;
     private long lastFishCaughtTime = 0;
     private boolean isFishingSessionActive = false;
-
-    // Notification types enum
-    public enum NotificationType {
-        ACTION_BAR("Action Bar"),
-        TITLE_SCREEN("Title Screen"),
-        CUSTOM_GUI("Custom GUI"),
-        CHAT_MESSAGE("Chat Message");
-
-        private final String name;
-
-        NotificationType(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-    }
 
     // Bobber status tracking
     public enum BobberStatus {
@@ -143,7 +123,7 @@ public class FishingNotifierModule extends Module {
 
             // Check if player is holding a fishing rod - if so, always show GUI when that option is enabled
             boolean holdingRod = isHoldingFishingRod();
-            if (holdingRod && alwaysShowGuiWithRod && notificationType == NotificationType.CUSTOM_GUI) {
+            if (holdingRod && alwaysShowGuiWithRod && notificationType == ModuleConfigGUI.NotificationType.GUI) {
                 showGui = true;
 
                 // Start fishing session if not already active
@@ -288,36 +268,26 @@ public class FishingNotifierModule extends Module {
         switch (notificationType) {
             case ACTION_BAR:
                 try {
-                    client.player.sendMessage(Text.literal("§aFish caught! Total: " + fishCaught), false);
+                    client.player.sendMessage(Text.of("§aFish caught! Total: " + fishCaught), true);
                 } catch (Exception e) {
                     ShadesClient.LOGGER.error("Could not send action bar notification: " + e.getMessage());
                 }
                 break;
 
-            case TITLE_SCREEN:
+            case TITLE:
                 try {
-                    client.inGameHud.setTitle(Text.literal("§aFish caught!"));
-                    client.inGameHud.setSubtitle(Text.literal("§eTotal: " + fishCaught));
+                    client.inGameHud.setTitle(Text.of("§aFish caught!"));
+                    client.inGameHud.setSubtitle(Text.of("§eTotal: " + fishCaught));
                     client.inGameHud.setTitleTicks(10, 30, 10); // fade in, stay, fade out
                 } catch (Exception e) {
                     ShadesClient.LOGGER.error("Could not send title notification: " + e.getMessage());
                 }
                 break;
 
-            case CUSTOM_GUI:
+            case GUI:
+            default:
                 showGui = true;
                 guiDisplayStartTime = System.currentTimeMillis();
-                break;
-
-            case CHAT_MESSAGE:
-                try {
-                    client.player.sendMessage(
-                            Text.literal("§a[Fishing Notifier] §fA fish has been caught! Total: " + fishCaught),
-                            true
-                    );
-                } catch (Exception e) {
-                    ShadesClient.LOGGER.error("Could not send chat notification: " + e.getMessage());
-                }
                 break;
         }
 
@@ -335,83 +305,56 @@ public class FishingNotifierModule extends Module {
         ShadesClient.LOGGER.info("Fish caught notification sent");
     }
 
-    // Render the custom GUI notification
-    public void renderNotification(DrawContext context) {
-        if (!isEnabled() || !showGui || notificationType != NotificationType.CUSTOM_GUI) {
-            return;
-        }
+    // Method to render the fishing GUI information
+    public int renderFishingInfo(DrawContext context, int x, int y, int width) {
+        MinecraftClient client = MinecraftClient.getInstance();
 
-        renderGuiPreview(context, guiX, guiY);
-    }
+        // Module title with fishing rod icon
+        String titleText = "🎣 Fishing Notifier";
+        context.drawText(client.textRenderer, titleText, x + 8, y, 0xFFFFFF55, true);
 
-    // Method to render the GUI (both for preview and actual notification)
-    public void renderGuiPreview(DrawContext context, int x, int y) {
-        // Background panel
-        int panelWidth = 160;
-        int panelHeight = 75; // Increased height for more info
+        // Fish count display
+        String fishText = "Fish caught: " + fishCaught;
+        context.drawText(client.textRenderer, fishText, x + 10, y + 15, 0xFFFFFFFF, true);
 
-        // Draw background
-        context.fill(x, y, x + panelWidth, y + panelHeight, 0xDD000000); // Semi-transparent black
-
-        // Draw border (green)
-        context.drawBorder(x, y, panelWidth, panelHeight, 0xFF00FF00); // Bright green border
-
-        // Draw title
-        context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer,
-                "§a[Fishing Notifier]", x + 5, y + 5, 0xFFFFFF);
-
-        // Draw fishing stats
-        context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer,
-                "§eTotal fish caught: §f" + fishCaught, x + 5, y + 20, 0xFFFFFF);
-
-        // Draw bobber status
-        String statusText = "§eBobber status: §f" + currentBobberStatus.getDisplay();
+        // Bobber status with color coding
+        int statusColor;
         if (currentBobberStatus == BobberStatus.FISH_BITING) {
-            statusText = "§c§lFISH BITING! REEL IN NOW!";
+            statusColor = 0xFFFF5555; // Red for bite alert
+            // Add a flashing effect for fish biting
+            if ((System.currentTimeMillis() / 250) % 2 == 0) {
+                statusColor = 0xFFFFFF55; // Flash between red and yellow
+            }
+        } else if (currentBobberStatus == BobberStatus.FISH_CAUGHT) {
+            statusColor = 0xFF55FF55; // Green for caught
+        } else if (currentBobberStatus == BobberStatus.IN_WATER) {
+            statusColor = 0xFF55FFFF; // Cyan for in water
+        } else if (currentBobberStatus == BobberStatus.IN_AIR || currentBobberStatus == BobberStatus.CASTING) {
+            statusColor = 0xFFAAAAAA; // Gray for in air/casting
+        } else {
+            statusColor = 0xFFFFFFFF; // White default
         }
-        context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer,
-                statusText, x + 5, y + 35, 0xFFFFFF);
 
-        // Draw session time if active
+        context.drawText(client.textRenderer, "Status: " + currentBobberStatus.getDisplay(), x + 10, y + 30, statusColor, true);
+
+        // Session time if active
         if (isFishingSessionActive) {
             long sessionDuration = (System.currentTimeMillis() - fishingStartTime) / 1000; // seconds
             long minutes = sessionDuration / 60;
             long seconds = sessionDuration % 60;
-            String timeStr = String.format("§eSession time: §f%d:%02d", minutes, seconds);
-            context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer,
-                    timeStr, x + 5, y + 50, 0xFFFFFF);
+            String timeStr = String.format("Session: %d:%02d", minutes, seconds);
+            context.drawText(client.textRenderer, timeStr, x + 10, y + 45, 0xFFFFFFFF, true);
         }
 
-        // If fish just caught, show notification message
-        if (System.currentTimeMillis() - lastFishCaughtTime < 3000) {
-            int alpha = (int)(255 * (1 - (System.currentTimeMillis() - lastFishCaughtTime) / 3000.0));
-
-            // Pulsing text effect
-            double pulse = Math.sin((System.currentTimeMillis() % 1000) / 500.0 * Math.PI) * 0.2 + 0.8;
-            int pulseScale = (int)(pulse * 255);
-
-            context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer,
-                    "§" + Integer.toHexString(pulseScale).charAt(0) + "§lFish caught!",
-                    x + panelWidth/2 - MinecraftClient.getInstance().textRenderer.getWidth("Fish caught!")/2,
-                    y + 65,
-                    0xFFFFFF | (alpha << 24));
-        }
-    }
-
-    // Create a HUD renderer method that can be called from the main render event
-    public void onRenderHud(DrawContext context) {
-        if (notificationType == NotificationType.CUSTOM_GUI &&
-                (showGui || (alwaysShowGuiWithRod && isHoldingFishingRod()))) {
-            renderNotification(context);
-        }
+        return y + 60; // Return the new Y position (height of this module section)
     }
 
     // Getter and Setter methods for config
-    public NotificationType getNotificationType() {
+    public ModuleConfigGUI.NotificationType getNotificationType() {
         return notificationType;
     }
 
-    public void setNotificationType(NotificationType type) {
+    public void setNotificationType(ModuleConfigGUI.NotificationType type) {
         this.notificationType = type;
     }
 
@@ -479,6 +422,8 @@ public class FishingNotifierModule extends Module {
 
     @Override
     public void openConfigScreen() {
-        MinecraftClient.getInstance().setScreen(new FishingNotifierConfig(this));
+        MinecraftClient client = MinecraftClient.getInstance();
+        client.setScreen(new ModuleConfigGUI(client.currentScreen, getName(), this));
+        ShadesClient.LOGGER.info("Opening config for " + getName());
     }
 }
