@@ -32,3 +32,16 @@
 /bettermap config
 /bettermap toggle
 /time set day
+/shades
+/shades rename
+/shades rename Hi
+/shades rename Helllo
+/shades
+/shades rename
+/shades
+/shades rename
+/shades
+/shades rename
+/shades
+/shades rename
+/shades

@@ -8,9 +8,11 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 import org.neo.shadesclient.events.EventHandler;
 import org.neo.shadesclient.modules.InventoryLockModule;
+import org.neo.shadesclient.modules.ItemRenameModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,10 +20,10 @@ import org.neo.shadesclient.qolitems.ShadesClientScreen;
 import org.neo.shadesclient.qolitems.ModuleManager;
 import org.neo.shadesclient.qolitems.ModuleGUIManager;
 import net.fabricmc.api.ClientModInitializer;
-import org.neo.shadesclient.modules.InventoryLockModule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ShadesClient implements ClientModInitializer {
     public static final String MOD_ID = "shadesclient";
@@ -30,32 +32,65 @@ public class ShadesClient implements ClientModInitializer {
     private static KeyBinding openGuiKey;
     private static final List<KeyBinding> moduleKeybindings = new ArrayList<>();
 
+    // Flags to handle one-time execution for commands
+    private static final AtomicBoolean mainGuiPending = new AtomicBoolean(false);
+    private static final AtomicBoolean renameGuiPending = new AtomicBoolean(false);
+
     @Override
     public void onInitializeClient() {
         LOGGER.info("ShadesClient is initializing...");
 
         EventHandler.init();
-
-        // Register tick event
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             EventHandler.onTick();
+
+            // Handle pending GUI openings from commands
+            if (mainGuiPending.get() && client.currentScreen == null) {
+                LOGGER.info("Opening main GUI from command (deferred)");
+                client.setScreen(new ShadesClientScreen());
+                client.inGameHud.getChatHud().addMessage(
+                        Text.literal("§a[ShadesClient] §7Main menu opened via command"));
+                mainGuiPending.set(false);
+            }
+
+            if (renameGuiPending.get() && client.currentScreen == null) {
+                LOGGER.info("Opening rename GUI from command (deferred)");
+                try {
+                    ItemRenameModule module = ModuleManager.getModule(ItemRenameModule.class);
+                    if (module != null) {
+                        if (!module.isEnabled()) {
+                            module.setEnabled(true);
+                            client.inGameHud.getChatHud().addMessage(
+                                    Text.literal("§a[ShadesClient] §7Enabled Item Rename module"));
+                        }
+                        module.openConfigScreen();
+                        client.inGameHud.getChatHud().addMessage(
+                                Text.literal("§a[ShadesClient] §7Rename config opened successfully"));
+                    } else {
+                        LOGGER.error("Failed to find Item Rename module!");
+                        client.inGameHud.getChatHud().addMessage(
+                                Text.literal("§c[ShadesClient] §7Error: Item Rename module not found!"));
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("Error opening rename config: " + e.getMessage(), e);
+                    client.inGameHud.getChatHud().addMessage(
+                            Text.literal("§c[ShadesClient] §7Error: " + e.getMessage()));
+                }
+                renameGuiPending.set(false);
+            }
         });
 
         WorldRenderEvents.END.register(context -> {
             LOGGER.info("Context class: " + context.getClass().getName());
-            // Use a temporary value for now
             float tempTickDelta = 0.0f;
             EventHandler.onRenderWorld(context.matrixStack(), tempTickDelta);
         });
 
-        // HUD rendering event
         HudRenderCallback.EVENT.register((drawContext, tickDelta) -> {
             EventHandler.onRenderHUD(drawContext);
         });
 
-        // Register mouse input handler
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // Check if we're in-game and not in a GUI
             if (client.world != null && client.currentScreen == null) {
                 double mouseX = client.mouse.getX();
                 double mouseY = client.mouse.getY();
@@ -76,7 +111,6 @@ public class ShadesClient implements ClientModInitializer {
         KeyBindingHelper.registerKeyBinding(openGuiKey);
         LOGGER.info("Main keybinding registered");
 
-        // Register tick event for the keybinding - Fixed to use lambda
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (openGuiKey.wasPressed() && client.currentScreen == null) {
                 LOGGER.info("Keybinding pressed, opening screen");
@@ -85,25 +119,11 @@ public class ShadesClient implements ClientModInitializer {
         });
         LOGGER.info("Keybinding event registered");
 
-        // Register the /shades command
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-            LOGGER.info("Registering /shades command");
-            dispatcher.register(ClientCommandManager.literal("shades")
-                    .executes(context -> {
-                        LOGGER.info("Command /shades executed");
-                        context.getSource().getClient().execute(() -> {
-                            LOGGER.info("Opening screen from command");
-                            context.getSource().getClient().setScreen(new ShadesClientScreen());
-                        });
-                        return 1;
-                    })
-            );
-            LOGGER.info("/shades command registered");
-        });
-
-        // Initialize modules
         ModuleManager.initializeModules();
         LOGGER.info("Modules initialized");
+
+        registerCommands();
+        LOGGER.info("Commands registered");
 
         // Register module keybindings
         registerModuleKeybindings();
@@ -112,21 +132,39 @@ public class ShadesClient implements ClientModInitializer {
         LOGGER.info("ShadesClient initialization complete");
     }
 
-    /**
-     * Handle mouse input and delegate to the ModuleGUIManager
-     * @param mouseX X position of the mouse
-     * @param mouseY Y position of the mouse
-     * @param mouseDown Whether the left mouse button is pressed
-     */
+    private void registerCommands() {
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+            LOGGER.info("Registering /shades commands");
+
+            dispatcher.register(ClientCommandManager.literal("shades")
+                    .executes(context -> {
+                        LOGGER.info("Command /shades executed");
+
+                        // Set flag to open the GUI in the next tick
+                        mainGuiPending.set(true);
+                        return 1;
+                    })
+                    // Add rename subcommand
+                    .then(ClientCommandManager.literal("rename")
+                            .executes(context -> {
+                                LOGGER.info("Command /shades rename executed");
+
+                                // Set flag to open the rename GUI in the next tick
+                                renameGuiPending.set(true);
+                                return 1;
+                            })
+                    )
+            );
+
+            LOGGER.info("/shades commands registered");
+        });
+    }
+
     public void handleMouse(double mouseX, double mouseY, boolean mouseDown) {
         ModuleGUIManager.getInstance().onMouseInput(mouseX, mouseY, mouseDown);
     }
 
-    /**
-     * Register keybindings for all modules that provide them
-     */
     private void registerModuleKeybindings() {
-        // Register InventoryLockModule keybindings
         InventoryLockModule inventoryLockModule = ModuleManager.getModule(InventoryLockModule.class);
 
         if (inventoryLockModule != null) {
@@ -139,7 +177,5 @@ public class ShadesClient implements ClientModInitializer {
                 }
             }
         }
-
-        // Add other modules with keybindings here as needed
     }
 }

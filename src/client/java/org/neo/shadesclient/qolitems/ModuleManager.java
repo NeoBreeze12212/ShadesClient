@@ -23,11 +23,14 @@ public class ModuleManager {
 
         // Register modules for External Tools
         registerModule(new PlaytimeTrackerModule("Playtime Tracker", "Shows you how long you have been playing", ModuleCategory.EXTERNAL_TOOLS));
+        registerModule(new CustomCapeModule("Cosmetics", "Lets you upload a Cape", ModuleCategory.EXTERNAL_TOOLS));
 
         // Register modules for Visuals category
         registerModule(new CropHelperModule("Crop Helper", "Shows when crops are ready for harvest", ModuleCategory.VISUALS));
         registerModule(new WaypointsModule("Waypoints", "Coming Soon", ModuleCategory.VISUALS));
         registerModule(new ToolDurabilityModule("Tool Durability", "Notifies you if your tools are about to break", ModuleCategory.VISUALS));
+        registerModule(new ItemRenameModule("Item Rename", "Rename items client-side with custom colors", ModuleCategory.VISUALS));
+
 
         // Register modules for Gameplay category
         registerModule(new FishingNotifierModule("Fishing Notifier", "Notifies you if your bobber catched a fish", ModuleCategory.GAMEPLAY));

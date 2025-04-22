@@ -2,14 +2,10 @@ package org.neo.shadesclient.modules;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
 import org.neo.shadesclient.client.ShadesClient;
 import org.neo.shadesclient.qolitems.Module;
 import org.neo.shadesclient.qolitems.ModuleCategory;
-import org.neo.shadesclient.qolitems.ModuleGUIManager;
 import org.neo.shadesclient.qolitems.ModuleConfigGUI;
 
 import java.text.SimpleDateFormat;
@@ -89,7 +85,7 @@ public class PlaytimeTrackerModule extends Module {
         if (!enableBreakReminders) return false;
 
         long timeSinceLastBreak = System.currentTimeMillis() - lastBreakNotification;
-        return timeSinceLastBreak >= breakReminderInterval * 60 * 1000;
+        return timeSinceLastBreak >= (long) breakReminderInterval * 60 * 1000;
     }
 
     /**
@@ -160,7 +156,7 @@ public class PlaytimeTrackerModule extends Module {
             String playtimeText = "Session: " + formatDuration(getSessionDuration());
 
             int textColor = VALUE_COLOR;
-            if (getSessionDuration() > breakReminderInterval * 60 * 1000) {
+            if (getSessionDuration() > (long) breakReminderInterval * 60 * 1000) {
                 textColor = WARNING_COLOR; // Use orange warning color
             }
 
