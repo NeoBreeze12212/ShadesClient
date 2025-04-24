@@ -23,7 +23,6 @@ public class ModuleManager {
 
         // Register modules for External Tools
         registerModule(new PlaytimeTrackerModule("Playtime Tracker", "Shows you how long you have been playing", ModuleCategory.EXTERNAL_TOOLS));
-        registerModule(new CustomCapeModule("Cosmetics", "Lets you upload a Cape", ModuleCategory.EXTERNAL_TOOLS));
 
         // Register modules for Visuals category
         registerModule(new CropHelperModule("Crop Helper", "Shows when crops are ready for harvest", ModuleCategory.VISUALS));

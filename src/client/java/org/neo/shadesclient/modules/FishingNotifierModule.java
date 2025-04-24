@@ -13,6 +13,7 @@ import org.neo.shadesclient.client.ShadesClient;
 import org.neo.shadesclient.qolitems.ModuleCategory;
 import org.neo.shadesclient.qolitems.Module;
 import org.neo.shadesclient.qolitems.ModuleConfigGUI;
+import org.neo.shadesclient.qolitems.ModulePlacementScreen;
 
 public class FishingNotifierModule extends Module {
     // Notification types - using the shared enum from ModuleConfigGUI
@@ -51,8 +52,30 @@ public class FishingNotifierModule extends Module {
     private float soundVolume = 1.0f;
 
     // Custom GUI settings
+    // Update the existing guiX and guiY fields and add hasCustomPosition
     private int guiX = 10;
     private int guiY = 10;
+    private boolean hasCustomPosition = false;
+    
+    // Add these methods if they don't already exist
+    public void setGuiPosition(int x, int y) {
+        this.guiX = x;
+        this.guiY = y;
+    }
+    
+    public boolean hasCustomPosition() {
+        return hasCustomPosition;
+    }
+    
+    public void setCustomPosition(boolean hasCustomPosition) {
+        this.hasCustomPosition = hasCustomPosition;
+    }
+    
+    public void openPlacementScreen() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        client.setScreen(new ModulePlacementScreen(client.currentScreen, getName(), this));
+        ShadesClient.LOGGER.info("Opening placement screen for " + getName());
+    }
     private long guiDisplayDuration = 3000; // Display time in milliseconds
     private long guiDisplayStartTime = 0;
     private boolean showGui = false;

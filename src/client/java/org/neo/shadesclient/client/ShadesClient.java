@@ -90,17 +90,6 @@ public class ShadesClient implements ClientModInitializer {
             EventHandler.onRenderHUD(drawContext);
         });
 
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.world != null && client.currentScreen == null) {
-                double mouseX = client.mouse.getX();
-                double mouseY = client.mouse.getY();
-                boolean leftMouseDown = GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
-
-                handleMouse(mouseX, mouseY, leftMouseDown);
-            }
-        });
-        LOGGER.info("Mouse input handler registered");
-
         // Register main GUI keybinding
         openGuiKey = new KeyBinding(
                 "key.shadesclient.open_gui",
@@ -160,9 +149,6 @@ public class ShadesClient implements ClientModInitializer {
         });
     }
 
-    public void handleMouse(double mouseX, double mouseY, boolean mouseDown) {
-        ModuleGUIManager.getInstance().onMouseInput(mouseX, mouseY, mouseDown);
-    }
 
     private void registerModuleKeybindings() {
         InventoryLockModule inventoryLockModule = ModuleManager.getModule(InventoryLockModule.class);

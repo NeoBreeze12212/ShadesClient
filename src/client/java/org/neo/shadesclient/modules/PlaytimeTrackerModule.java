@@ -7,6 +7,7 @@ import org.neo.shadesclient.client.ShadesClient;
 import org.neo.shadesclient.qolitems.Module;
 import org.neo.shadesclient.qolitems.ModuleCategory;
 import org.neo.shadesclient.qolitems.ModuleConfigGUI;
+import org.neo.shadesclient.qolitems.ModulePlacementScreen;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -29,6 +30,14 @@ public class PlaytimeTrackerModule extends Module {
     private static final int WARNING_COLOR = 0xFFFF7700;    // Orange for warnings
     private static final int BACKGROUND_COLOR = 0xA0000000; // Semi-transparent black background
 
+    // Position variables - these will be used for custom positioning
+    private int posX = 5;
+    private int posY = 5;
+    private boolean customPosition = false;
+    // Add these variables for GUI positioning
+    private int guiX = 5;
+    private int guiY = 5;
+
     public PlaytimeTrackerModule(String name, String description, ModuleCategory category) {
         super(name, description, category);
     }
@@ -45,27 +54,14 @@ public class PlaytimeTrackerModule extends Module {
         ShadesClient.LOGGER.info("Playtime Tracker module disabled. Session duration: " + formatDuration(getSessionDuration()));
     }
 
-    /**
-     * Get the current system time as a formatted string
-     * @return Current time formatted as HH:mm:ss
-     */
     public String getCurrentTime() {
         return timeFormat.format(new Date());
     }
 
-    /**
-     * Get the session duration in milliseconds
-     * @return Duration of the current session
-     */
     public long getSessionDuration() {
         return System.currentTimeMillis() - sessionStartTime;
     }
 
-    /**
-     * Format a duration from milliseconds to a readable string
-     * @param duration Duration in milliseconds
-     * @return Formatted string (HH:mm:ss)
-     */
     public String formatDuration(long duration) {
         long seconds = duration / 1000;
         long minutes = seconds / 60;
@@ -77,10 +73,6 @@ public class PlaytimeTrackerModule extends Module {
                 seconds % 60);
     }
 
-    /**
-     * Check if it's time to show a break reminder
-     * @return true if a break reminder should be shown
-     */
     public boolean shouldShowBreakReminder() {
         if (!enableBreakReminders) return false;
 
@@ -88,9 +80,6 @@ public class PlaytimeTrackerModule extends Module {
         return timeSinceLastBreak >= (long) breakReminderInterval * 60 * 1000;
     }
 
-    /**
-     * Show a break reminder to the player
-     */
     public void showBreakReminder() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null) {
@@ -119,15 +108,14 @@ public class PlaytimeTrackerModule extends Module {
         }
     }
 
-    /**
-     * Render playtime information with a box-style UI matching Tool Durability
-     * @param context DrawContext for rendering
-     * @param x X position
-     * @param y Y position
-     * @return new Y position after rendering
-     */
     public int renderPlaytimeInfo(DrawContext context, int x, int y, int width) {
         if (!isEnabled()) return y;
+
+        // Use custom position if set
+        if (customPosition) {
+            x = posX;
+            y = posY;
+        }
 
         MinecraftClient client = MinecraftClient.getInstance();
         int startY = y;
@@ -169,18 +157,37 @@ public class PlaytimeTrackerModule extends Module {
             showBreakReminder();
         }
 
+        // If using custom position, return the original y
+        if (customPosition) {
+            return startY;
+        }
+        
         return startY + contentHeight + 5; // Return position after box with a small gap
     }
 
-    /**
-     * Calculate the height needed for the box based on enabled content
-     * @return height in pixels
-     */
-    private int calculateHeight() {
-        int height = 20; // Base height with title
-        if (showCurrentTime) height += 10;
-        if (showPlaytime) height += 10;
-        return height;
+    // Add methods for position management
+    public void setPosition(int x, int y) {
+        this.posX = x;
+        this.posY = y;
+        this.guiX = x;  // Keep both position systems in sync
+        this.guiY = y;  // Keep both position systems in sync
+        this.customPosition = true;
+    }
+
+    public int getPosX() {
+        return posX;
+    }
+
+    public int getPosY() {
+        return posY;
+    }
+
+    public void setCustomPosition(boolean customPosition) {
+        this.customPosition = customPosition;
+    }
+
+    public boolean hasCustomPosition() {
+        return customPosition;
     }
 
     @Override
@@ -191,6 +198,22 @@ public class PlaytimeTrackerModule extends Module {
     @Override
     public void openConfigScreen() {
         MinecraftClient.getInstance().setScreen(new ModuleConfigGUI(null, "Playtime Tracker", this));
+    }
+
+    // Add method to open placement screen
+    public void openPlacementScreen() {
+        MinecraftClient.getInstance().setScreen(new ModulePlacementScreen(null, "Playtime Tracker", this));
+    }
+
+    /**
+     * Calculate the height needed for the box based on enabled content
+     * @return height in pixels
+     */
+    public int calculateHeight() {
+        int height = 20; // Base height with title
+        if (showCurrentTime) height += 10;
+        if (showPlaytime) height += 10;
+        return height;
     }
 
     // Getters and setters for configuration
@@ -238,5 +261,21 @@ public class PlaytimeTrackerModule extends Module {
         sessionStartTime = System.currentTimeMillis();
         lastBreakNotification = sessionStartTime;
         ShadesClient.LOGGER.info("Playtime Tracker session reset");
+    }
+
+    public int getGuiX() {
+        return guiX;
+    }
+
+    public void setGuiX(int guiX) {
+        this.guiX = guiX;
+    }
+
+    public int getGuiY() {
+        return guiY;
+    }
+
+    public void setGuiY(int guiY) {
+        this.guiY = guiY;
     }
 }

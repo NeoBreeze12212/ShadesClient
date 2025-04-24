@@ -45,3 +45,4 @@
 /shades
 /shades rename
 /shades
+/time set day

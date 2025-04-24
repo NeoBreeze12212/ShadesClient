@@ -9,8 +9,7 @@
     "InGameHudMixin",
     "InventoryLockMixin",
     "ItemDropMixin",
-    "ItemDisplayNameMixin",
-    "CapeFeatureRendererMixin"
+    "ItemDisplayNameMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -135,6 +135,45 @@ public class ModuleConfigGUI extends Screen {
             addCategoryButton(category, categoryY);
             categoryY += buttonHeight;
         }
+        
+        // Add placement button for modules that support it
+        if (module instanceof PlaytimeTrackerModule) {
+            PlaytimeTrackerModule playtimeModule = (PlaytimeTrackerModule) module;
+            ButtonWidget placementButton = ButtonWidget.builder(
+                    Text.of("Placement Settings"),
+                    btn -> {
+                        // Open the placement screen when clicked
+                        playtimeModule.openPlacementScreen();
+                    })
+                    .dimensions(10, categoryY, leftPanelWidth - 20, 30)
+                    .build();
+            addDrawableChild(placementButton);
+            categoryY += buttonHeight; // Increment Y position for next button
+        } else if (module instanceof TorchReminderModule) {
+            TorchReminderModule torchModule = (TorchReminderModule) module;
+            ButtonWidget placementButton = ButtonWidget.builder(
+                    Text.of("Placement Settings"),
+                    btn -> {
+                        // Open the placement screen when clicked
+                        torchModule.openPlacementScreen();
+                    })
+                    .dimensions(10, categoryY, leftPanelWidth - 20, 30)
+                    .build();
+            addDrawableChild(placementButton);
+            categoryY += buttonHeight;
+        } else if (module instanceof FishingNotifierModule) {
+            FishingNotifierModule fishingModule = (FishingNotifierModule) module;
+            ButtonWidget placementButton = ButtonWidget.builder(
+                    Text.of("Placement Settings"),
+                    btn -> {
+                        // Open the placement screen when clicked
+                        fishingModule.openPlacementScreen();
+                    })
+                    .dimensions(10, categoryY, leftPanelWidth - 20, 30)
+                    .build();
+            addDrawableChild(placementButton);
+            categoryY += buttonHeight;
+        }
 
         // Add "Back" button at bottom of left panel
         this.addDrawableChild(ButtonWidget.builder(Text.of("Back"), button -> {
@@ -542,29 +581,6 @@ public class ModuleConfigGUI extends Screen {
         }
     }
 
-    // Helper method to get the current notification type from any module
-    private NotificationType getCurrentNotificationType() {
-        if (module instanceof ToolDurabilityModule) {
-            return ((ToolDurabilityModule) module).getNotificationType();
-        } else if (module instanceof TorchReminderModule) {
-            return ((TorchReminderModule) module).getNotificationType();
-        } else if (module instanceof FishingNotifierModule) {
-            return ((FishingNotifierModule) module).getNotificationType();
-        } else if (module instanceof PlaytimeTrackerModule) {
-            // Assuming PlaytimeTrackerModule has a getNotificationType method
-            // If not implemented yet, we'll add it separately
-            return NotificationType.GUI; // Default if not yet implemented
-        }
-        return NotificationType.GUI; // Default
-    }
-
-    // Helper method to set notification type for PlaytimeTrackerModule
-    // This would need to be implemented in the PlaytimeTrackerModule class
-    private void setNotificationTypeForPlaytimeTracker(PlaytimeTrackerModule module, NotificationType type) {
-        // This would call module.setNotificationType(type) once implemented
-        // For now, we'll handle it as a placeholder
-    }
-
     private void saveSettings() {
         // Since we're now applying settings directly when buttons are clicked,
         // this method is mostly for handling any final cleanup or validation
@@ -645,6 +661,11 @@ public class ModuleConfigGUI extends Screen {
         return false;
     }
 
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
     class CategoryButton extends ButtonWidget {
         private final SettingCategory category;
 
@@ -666,5 +687,28 @@ public class ModuleConfigGUI extends Screen {
 
             context.drawText(textRenderer, getMessage(), textX, textY, TEXT_COLOR, false);
         }
+    }
+
+    // Helper method to get the current notification type from any module
+    private NotificationType getCurrentNotificationType() {
+        if (module instanceof ToolDurabilityModule) {
+            return ((ToolDurabilityModule) module).getNotificationType();
+        } else if (module instanceof TorchReminderModule) {
+            return ((TorchReminderModule) module).getNotificationType();
+        } else if (module instanceof FishingNotifierModule) {
+            return ((FishingNotifierModule) module).getNotificationType();
+        } else if (module instanceof PlaytimeTrackerModule) {
+            // Assuming PlaytimeTrackerModule has a getNotificationType method
+            // If not implemented yet, we'll add it separately
+            return NotificationType.GUI; // Default if not yet implemented
+        }
+        return NotificationType.GUI; // Default
+    }
+
+    // Helper method to set notification type for PlaytimeTrackerModule
+    // This would need to be implemented in the PlaytimeTrackerModule class
+    private void setNotificationTypeForPlaytimeTracker(PlaytimeTrackerModule module, NotificationType type) {
+        // This would call module.setNotificationType(type) once implemented
+        // For now, we'll handle it as a placeholder
     }
 }

@@ -14,13 +14,28 @@ import org.neo.shadesclient.qolitems.ModuleConfigGUI;
 import org.neo.shadesclient.qolitems.ModuleCategory;
 import org.neo.shadesclient.qolitems.Module;
 import net.minecraft.client.sound.PositionedSoundInstance;
+import org.neo.shadesclient.qolitems.ModulePlacementScreen;
 
 public class TorchReminderModule extends Module {
+    // Module settings
     private int lightLevelThreshold = 7;
     private long notificationCooldown = 5000; // 5 seconds in ms
     private long lastNotificationTime = 0;
     private ModuleConfigGUI.NotificationType notificationType = ModuleConfigGUI.NotificationType.GUI;
     private boolean playSound = true;
+
+    // GUI positioning fields
+    private int guiX = 5;
+    private int guiY = 60; // Default position below tool durability
+    private boolean hasCustomPosition = false;
+
+    // Colors for GUI
+    private static final int BACKGROUND_COLOR = 0xAA000000; // Semi-transparent black
+    private static final int BORDER_COLOR = 0xFF404040;     // Dark gray border
+    private static final int HEADER_COLOR = 0xFF00FF00;     // Green text for headers
+    private static final int TEXT_COLOR = 0xFFFFFFFF;       // White for values
+    private static final int WARNING_COLOR = 0xFFFF0000;    // Red for warnings
+    private static final int CAUTION_COLOR = 0xFFFF7F00;    // Orange for caution
 
     public TorchReminderModule(String name, String description, ModuleCategory category) {
         super(name, description, category);
@@ -79,8 +94,9 @@ public class TorchReminderModule extends Module {
                 client.inGameHud.setTitleTicks(10, 40, 10);
                 break;
             case GUI:
-                // GUI display is handled by renderLightLevelOverlay method
-                client.player.sendMessage(message, false);
+                // Don't send chat message for GUI mode - the GUI display is handled by renderTorchReminderInfo
+                // Just log it for debugging
+                ShadesClient.LOGGER.info("GUI notification: Light level warning. Current level: " + lightLevel);
                 break;
         }
 
@@ -89,56 +105,6 @@ public class TorchReminderModule extends Module {
         }
 
         ShadesClient.LOGGER.info("Sent light level warning. Current level: " + lightLevel);
-    }
-
-    // This method would be called during HUD rendering
-    public void renderLightLevelOverlay(DrawContext context) {
-        if (!isEnabled() || notificationType != ModuleConfigGUI.NotificationType.GUI) return;
-
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.world == null) return;
-
-        BlockPos playerPos = client.player.getBlockPos();
-        int blockLight = client.world.getLightLevel(LightType.BLOCK, playerPos);
-        int skyLight = client.world.getLightLevel(LightType.SKY, playerPos);
-        int effectiveLight = Math.max(blockLight, skyLight - client.world.getAmbientDarkness());
-
-        // Draw the module GUI background
-        int width = 120;
-        int height = 50;
-        int x = 5;
-        int y = 60; // Position below the tool durability module
-
-        // Background
-        context.fill(x, y, x + width, y + height, 0xAA000000);
-
-        // Border
-        context.fill(x, y, x + width, y + 1, 0xFF404040);
-        context.fill(x, y + height - 1, x + width, y + height, 0xFF404040);
-        context.fill(x, y, x + 1, y + height, 0xFF404040);
-        context.fill(x + width - 1, y, x + width, y + height, 0xFF404040);
-
-        // Header
-        String headerText = "— Torch Reminder —";
-        int headerWidth = client.textRenderer.getWidth(headerText);
-        context.drawText(client.textRenderer, headerText, x + (width - headerWidth) / 2, y + 5, 0xFF00FF00, true);
-
-        // Separator
-        context.fill(x + 5, y + 15, x + width - 5, y + 16, 0xFF404040);
-
-        // Light level info
-        int color;
-        if (effectiveLight < lightLevelThreshold) {
-            color = 0xFFFF0000; // Red
-        } else if (effectiveLight < 10) {
-            color = 0xFFFF7F00; // Orange
-        } else {
-            color = 0xFF00FF00; // Green
-        }
-
-        context.drawTextWithShadow(client.textRenderer, "Current Light: " + effectiveLight, x + 10, y + 20, color);
-        context.drawTextWithShadow(client.textRenderer, "Block Light: " + blockLight, x + 10, y + 30, 0xFFFFFFFF);
-        context.drawTextWithShadow(client.textRenderer, "Sky Light: " + skyLight, x + 10, y + 40, 0xFFFFFFFF);
     }
 
     // Getters and setters
@@ -174,6 +140,37 @@ public class TorchReminderModule extends Module {
         this.playSound = playSound;
     }
 
+    // GUI position getters and setters
+    public int getGuiX() {
+        return guiX;
+    }
+
+    public int getGuiY() {
+        return guiY;
+    }
+
+    public void setGuiPosition(int x, int y) {
+        this.guiX = x;
+        this.guiY = y;
+        this.hasCustomPosition = true;
+        ShadesClient.LOGGER.info("Set GUI position for " + getName() + " to X:" + x + ", Y:" + y);
+    }
+
+    public boolean hasCustomPosition() {
+        return hasCustomPosition;
+    }
+
+    public void setCustomPosition(boolean hasCustomPosition) {
+        this.hasCustomPosition = hasCustomPosition;
+    }
+
+    // Method for ModulePlacementScreen integration
+    public void openPlacementScreen() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        client.setScreen(new ModulePlacementScreen(client.currentScreen, getName(), this));
+        ShadesClient.LOGGER.info("Opening placement screen for " + getName());
+    }
+
     @Override
     public boolean hasConfigScreen() {
         return true;
@@ -184,5 +181,72 @@ public class TorchReminderModule extends Module {
         MinecraftClient client = MinecraftClient.getInstance();
         client.setScreen(new ModuleConfigGUI(client.currentScreen, getName(), this));
         ShadesClient.LOGGER.info("Opening config for " + getName());
+    }
+
+    // Add this method to render the torch reminder info
+    public int renderTorchReminderInfo(DrawContext context, int x, int y, int width) {
+        if (!isEnabled()) return y;
+    
+        // Use custom position if set
+        if (hasCustomPosition) {
+            x = guiX;
+            y = guiY;
+        }
+    
+        MinecraftClient client = MinecraftClient.getInstance();
+        int startY = y;
+        int padding = 5;
+        
+        // Draw background box
+        int boxHeight = 25; // Height for title + light level info
+        context.fill(x, y, x + width, y + boxHeight, BACKGROUND_COLOR);
+        
+        // Draw border
+        drawBorder(context, x, y, width, boxHeight);
+    
+        // Module title centered and green
+        String titleText = "— Torch Reminder —";
+        int titleWidth = client.textRenderer.getWidth(titleText);
+        context.drawText(client.textRenderer, titleText, x + (width - titleWidth) / 2, y + 2, HEADER_COLOR, false);
+        y += 12;
+    
+        // Get light levels
+        if (client.world != null && client.player != null) {
+            int blockLight = client.world.getLightLevel(LightType.BLOCK, client.player.getBlockPos());
+            int skyLight = client.world.getLightLevel(LightType.SKY, client.player.getBlockPos());
+            int effectiveLight = Math.max(blockLight, skyLight - client.world.getAmbientDarkness());
+    
+            // Light level info with color coding
+            int lightColor;
+            if (effectiveLight < lightLevelThreshold) {
+                lightColor = CAUTION_COLOR; // Orange for warning (matching the screenshot)
+            } else {
+                lightColor = TEXT_COLOR; // White for normal
+            }
+    
+            String lightText = "Light Level: " + effectiveLight + " (Threshold: " + lightLevelThreshold + ")";
+            context.drawText(client.textRenderer, lightText, x + padding, y, lightColor, false);
+        }
+    
+        // If using custom position, return the original y
+        if (hasCustomPosition) {
+            return startY;
+        }
+        
+        return startY + boxHeight; // Return position after box
+    }
+    
+    /**
+     * Draw a border around the module GUI
+     */
+    private void drawBorder(DrawContext context, int x, int y, int width, int height) {
+        // Top border
+        context.fill(x, y, x + width, y + 1, BORDER_COLOR);
+        // Bottom border
+        context.fill(x, y + height - 1, x + width, y + height, BORDER_COLOR);
+        // Left border
+        context.fill(x, y, x + 1, y + height, BORDER_COLOR);
+        // Right border
+        context.fill(x + width - 1, y, x + width, y + height, BORDER_COLOR);
     }
 }

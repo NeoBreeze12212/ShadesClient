@@ -2,8 +2,11 @@ package org.neo.shadesclient.qolitems;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.text.Text;
+import org.neo.shadesclient.client.ShadesClient;
 import org.neo.shadesclient.modules.FishingNotifierModule;
 import org.neo.shadesclient.modules.InventoryLockModule;
+import org.neo.shadesclient.modules.PlaytimeTrackerModule;
 import org.neo.shadesclient.modules.ToolDurabilityModule;
 import org.neo.shadesclient.modules.TorchReminderModule;
 import org.neo.shadesclient.qolitems.ModuleConfigGUI;
@@ -28,11 +31,12 @@ public class ModuleGUIManager {
     private static final int WARNING_COLOR = 0xFFFF5555;    // Red for warnings
     private static final int SUCCESS_COLOR = 0xFF55FF55;    // Green for good values
     private static final int ICON_COLOR = 0xFFAAAAAA;       // Gray for icons
-
-    // Dragging functionality
-    private boolean isDragging = false;
-    private int dragOffsetX, dragOffsetY;
     private static final int TITLE_BAR_HEIGHT = 10;
+
+    private boolean isDragging = false;
+    private String moduleInDragMode = null;
+    private int dragOffsetX = 0;
+    private int dragOffsetY = 0;
 
     private ModuleGUIManager() {
         // Private constructor for singleton
@@ -60,36 +64,6 @@ public class ModuleGUIManager {
         return isEnabled;
     }
 
-    public void handleMouseInput(double mouseX, double mouseY, boolean mouseDown) {
-        if (!isEnabled) return;
-
-        if (mouseDown) {
-            // Check if click is in title area of the GUI
-            if (mouseX >= guiX && mouseX <= guiX + 130 &&
-                    mouseY >= guiY && mouseY <= guiY + TITLE_BAR_HEIGHT) {
-                isDragging = true;
-                dragOffsetX = (int) (mouseX - guiX);
-                dragOffsetY = (int) (mouseY - guiY);
-            }
-        } else {
-            isDragging = false;
-        }
-
-        // Update position if dragging
-        if (isDragging) {
-            guiX = (int) (mouseX - dragOffsetX);
-            guiY = (int) (mouseY - dragOffsetY);
-
-            // Ensure GUI stays on screen
-            MinecraftClient client = MinecraftClient.getInstance();
-            int screenWidth = client.getWindow().getScaledWidth();
-            int screenHeight = client.getWindow().getScaledHeight();
-
-            guiX = Math.max(0, Math.min(guiX, screenWidth - 130));
-            guiY = Math.max(0, Math.min(guiY, screenHeight - 50));
-        }
-    }
-
     public void render(DrawContext context) {
         if (!isEnabled) return;
 
@@ -107,7 +81,7 @@ public class ModuleGUIManager {
         context.fill(guiX, currentY, guiX + width, currentY + TITLE_BAR_HEIGHT, 0xFF000000); // Black title bar
         context.fill(guiX, currentY + TITLE_BAR_HEIGHT, guiX + width, currentY + moduleHeight, BACKGROUND_COLOR);
 
-        // Border
+        // Regular border
         drawBorder(context, guiX, currentY, width, moduleHeight);
 
         // Title "ShadesClient" - smaller and in title bar
@@ -129,11 +103,32 @@ public class ModuleGUIManager {
                 if (module instanceof ToolDurabilityModule) {
                     currentY = renderToolDurabilityInfo(context, (ToolDurabilityModule) module, guiX, currentY, width);
                 } else if (module instanceof TorchReminderModule) {
-                    currentY = renderTorchReminderInfo(context, (TorchReminderModule) module, guiX, currentY, width);
+                    TorchReminderModule torchModule = (TorchReminderModule) module;
+                    
+                    // Check if module has custom position
+                    if (torchModule.hasCustomPosition() && !moduleInDragMode.equals("Torch Reminder")) {
+                        // Render at custom position
+                        torchModule.renderTorchReminderInfo(context, 0, 0, width);
+                    } else {
+                        // Render in the normal flow
+                        currentY = torchModule.renderTorchReminderInfo(context, guiX, currentY, width);
+                    }
                 } else if (module instanceof FishingNotifierModule) {
-                    currentY = ((FishingNotifierModule) module).renderFishingInfo(context, guiX, currentY, width);
+                    FishingNotifierModule fishingModule = (FishingNotifierModule) module;
+                    currentY = fishingModule.renderFishingInfo(context, guiX, currentY, width);
                 } else if (module instanceof InventoryLockModule) {
                     currentY = ((InventoryLockModule) module).renderInventoryLockInfo(context, guiX, currentY, width);
+                } else if (module instanceof PlaytimeTrackerModule) {
+                    PlaytimeTrackerModule playtimeModule = (PlaytimeTrackerModule) module;
+                    
+                    // Check if module has custom position
+                    if (playtimeModule.hasCustomPosition() && !moduleInDragMode.equals("Playtime Tracker")) {
+                        // Render at custom position
+                        playtimeModule.renderPlaytimeInfo(context, 0, 0, width);
+                    } else {
+                        // Render in the normal flow
+                        currentY = playtimeModule.renderPlaytimeInfo(context, guiX, currentY, width);
+                    }
                 }
             }
         }
@@ -157,14 +152,87 @@ public class ModuleGUIManager {
                 } else if (module instanceof TorchReminderModule) {
                     totalHeight += 25; // More compact height
                 } else if (module instanceof FishingNotifierModule) {
-                    totalHeight += 30; // More compact height
+                    totalHeight += 60; // Adjusted for FishingNotifierModule height
                 } else if (module instanceof InventoryLockModule) {
                     totalHeight += 35; // More compact height
+                } else if (module instanceof PlaytimeTrackerModule) {
+                    totalHeight += ((PlaytimeTrackerModule) module).calculateHeight();
                 }
             }
         }
 
         return totalHeight;
+    }
+
+    public void startDragging(int mouseX, int mouseY) {
+        if (moduleInDragMode != null) {
+            isDragging = true;
+            dragOffsetX = mouseX - guiX;
+            dragOffsetY = mouseY - guiY;
+        }
+    }
+
+    // Add this method to handle the actual dragging
+    public void handleDrag(int mouseX, int mouseY) {
+        if (isDragging) {
+            guiX = mouseX - dragOffsetX;
+            guiY = mouseY - dragOffsetY;
+
+            // Make sure the GUI doesn't go off-screen
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (guiX < 0) guiX = 0;
+            if (guiY < 0) guiY = 0;
+            if (guiX > client.getWindow().getScaledWidth() - 130) guiX = client.getWindow().getScaledWidth() - 130;
+            if (guiY > client.getWindow().getScaledHeight() - 50) guiY = client.getWindow().getScaledHeight() - 50;
+        }
+    }
+
+    // Add this method to end the drag operation
+    public void stopDragging() {
+        isDragging = false;
+    }
+
+    // Add this method to set drag mode for a specific module
+    public void setDragModeForModule(String moduleName, boolean dragMode) {
+        if (dragMode) {
+            moduleInDragMode = moduleName;
+        } else {
+            moduleInDragMode = null;
+        }
+        isDragging = false;
+    }
+
+    // Add this method to check if a module is in drag mode
+    public boolean isInDragMode() {
+        return moduleInDragMode != null;
+    }
+
+    // Add this method to check if a point is within the GUI area
+    public boolean isPointInGUI(int mouseX, int mouseY) {
+        int height = calculateModuleHeight();
+        return mouseX >= guiX && mouseX <= guiX + 130 &&
+                mouseY >= guiY && mouseY <= guiY + height;
+    }
+
+    // Add this method to save module positions
+    // Update saveModulePositions method
+    public void saveModulePositions() {
+        // Save the positions to the modules
+        for (Module module : modules) {
+            if (module instanceof PlaytimeTrackerModule && moduleInDragMode != null && 
+                moduleInDragMode.equals("Playtime Tracker")) {
+                PlaytimeTrackerModule playtimeModule = (PlaytimeTrackerModule) module;
+                playtimeModule.setPosition(guiX, guiY);
+                playtimeModule.setCustomPosition(true);
+            } else if (module instanceof TorchReminderModule && moduleInDragMode != null && 
+                      moduleInDragMode.equals("Torch Reminder")) {
+                TorchReminderModule torchModule = (TorchReminderModule) module;
+                torchModule.setGuiPosition(guiX, guiY);
+                torchModule.setCustomPosition(true);
+            }
+        }
+        
+        ShadesClient.LOGGER.info("Saved module position: X=" + guiX + ", Y=" + guiY);
     }
 
     private int renderToolDurabilityInfo(DrawContext context, ToolDurabilityModule module, int x, int y, int width) {
@@ -270,6 +338,7 @@ public class ModuleGUIManager {
     }
 
     public void onRenderGameHud(DrawContext context) {
+        // Always render the GUI
         render(context);
 
         // Also call renderHUD for modules that need to render directly on the game HUD
@@ -278,10 +347,6 @@ public class ModuleGUIManager {
                 ((InventoryLockModule) module).renderHUD(context);
             }
         }
-    }
-
-    public void onMouseInput(double mouseX, double mouseY, boolean mouseDown) {
-        handleMouseInput(mouseX, mouseY, mouseDown);
     }
 
     public void setPosition(int x, int y) {
